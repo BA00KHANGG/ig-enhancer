@@ -38,7 +38,7 @@ function sendMessageWithRetry(tabId, message, retryCount = 0) {
 
 function updateIconForTab(tab) {
   chrome.storage.local.get({ enabled: true }, data => {
-    const iconPath = tab.url.includes("Instagram.com")
+    const iconPath = tab.url.includes("instagram.com")
       ? data.enabled
         ? "icon-enabled.png"
         : "icon-disabled.png"
