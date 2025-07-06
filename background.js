@@ -1,20 +1,41 @@
+// Initialize extension
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({ enabled: true }) // Set default state to enabled
+  // Set default settings
+  const defaultSettings = {
+    autoDetection: false,
+    hideComments: true,
+    scrollNavigation: true,
+    lastScreenMode: "landscape",
+  }
+
+  chrome.storage.local.set(defaultSettings)
   updateIconBasedOnDomain()
 })
 
 chrome.runtime.onStartup.addListener(() => {
-  updateIconBasedOnDomain() // Ensure correct icon on browser startup for all tabs
+  updateIconBasedOnDomain()
 })
 
+// Handle action clicks (when popup is not available or for quick toggle)
 chrome.action.onClicked.addListener(tab => {
-  chrome.storage.local.get({ enabled: true }, data => {
-    const newState = !data.enabled
-    chrome.storage.local.set({ enabled: newState }, () => {
-      sendMessageWithRetry(tab.id, { enabled: newState })
-      updateIconForTab(tab) // Update icon based on the new state and tab URL
-    })
-  })
+  // This will only trigger if popup is not set or fails to load
+  // Provides fallback functionality for quick comment toggle
+  chrome.storage.local.get(
+    { hideComments: true, autoDetection: false },
+    data => {
+      // Only toggle if auto detection is off
+      if (!data.autoDetection) {
+        const newState = !data.hideComments
+        chrome.storage.local.set({ hideComments: newState }, () => {
+          sendMessageWithRetry(tab.id, {
+            type: "hideCommentsChanged",
+            enabled: newState,
+          })
+          updateIconForTab(tab)
+        })
+      }
+    }
+  )
 })
 
 function sendMessageWithRetry(tabId, message, retryCount = 0) {
@@ -37,14 +58,31 @@ function sendMessageWithRetry(tabId, message, retryCount = 0) {
 }
 
 function updateIconForTab(tab) {
-  chrome.storage.local.get({ enabled: true }, data => {
-    const iconPath = tab.url.includes("instagram.com")
-      ? data.enabled
-        ? "icon-enabled.png"
-        : "icon-disabled.png"
-      : "icon-disabled.png"
-    chrome.action.setIcon({ path: iconPath, tabId: tab.id })
-  })
+  chrome.storage.local.get(
+    {
+      hideComments: true,
+      autoDetection: false,
+      scrollNavigation: true,
+      lastScreenMode: "landscape",
+    },
+    data => {
+      let iconPath = "icon-disabled.png"
+
+      if (tab.url && tab.url.includes("instagram.com")) {
+        // Show enabled icon if ANY feature is active
+        const hasActiveFeatures =
+          data.autoDetection ||
+          data.scrollNavigation ||
+          (!data.autoDetection && data.hideComments)
+
+        iconPath = hasActiveFeatures
+          ? "icons/icon-enabled.png"
+          : "icons/icon-disabled.png"
+      }
+
+      chrome.action.setIcon({ path: iconPath, tabId: tab.id })
+    }
+  )
 }
 
 function updateIconBasedOnDomain() {
@@ -55,8 +93,34 @@ function updateIconBasedOnDomain() {
   })
 }
 
+// Update icon when tab changes
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
     updateIconForTab(tab)
   }
+})
+
+// Listen for storage changes to update icons
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local") {
+    // Update icons when any setting changes
+    if (
+      changes.hideComments ||
+      changes.autoDetection ||
+      changes.scrollNavigation ||
+      changes.lastScreenMode
+    ) {
+      updateIconBasedOnDomain()
+    }
+  }
+})
+
+// Handle messages from popup or content script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "statusUpdate") {
+    // Forward status updates if needed
+    sendResponse({ status: "Status received" })
+  }
+
+  return true
 })

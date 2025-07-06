@@ -1,7 +1,96 @@
+// Settings and state management
+let currentSettings = {
+  autoDetection: false,
+  hideComments: true,
+  scrollNavigation: true,
+  lastScreenMode: "landscape",
+}
+
 let scrollTimeout = null
 let isScrolling = false
 let lastScrollTime = 0
-const SCROLL_DELAY = 150 // Minimum time between scroll actions
+let resizeTimeout = null
+const SCROLL_DELAY = 150
+const RESIZE_DELAY = 300
+
+// Initialize extension
+initializeExtension()
+
+function initializeExtension() {
+  loadSettings(() => {
+    handleUrlChange()
+    setupScreenDetection()
+    if (isInPostModal()) {
+      addScrollListeners()
+    }
+    startObserving()
+  })
+}
+
+function loadSettings(callback) {
+  const defaultSettings = {
+    autoDetection: false,
+    hideComments: true,
+    scrollNavigation: true,
+    lastScreenMode: "landscape",
+  }
+
+  chrome.storage.local.get(defaultSettings, settings => {
+    currentSettings = { ...settings }
+    if (callback) callback()
+  })
+}
+
+function saveSettings(updates) {
+  currentSettings = { ...currentSettings, ...updates }
+  chrome.storage.local.set(updates)
+}
+
+// Screen detection functionality
+function setupScreenDetection() {
+  if (currentSettings.autoDetection) {
+    detectScreenMode()
+    window.addEventListener("resize", handleResize)
+  } else {
+    window.removeEventListener("resize", handleResize)
+  }
+}
+
+function handleResize() {
+  if (resizeTimeout) {
+    clearTimeout(resizeTimeout)
+  }
+
+  resizeTimeout = setTimeout(() => {
+    if (currentSettings.autoDetection) {
+      detectScreenMode()
+    }
+  }, RESIZE_DELAY)
+}
+
+function detectScreenMode() {
+  const width = window.innerWidth
+  const height = window.innerHeight
+  const aspectRatio = width / height
+
+  // Consider portrait if aspect ratio is less than 1.2 (to account for tablets)
+  const isPortrait = aspectRatio < 1.2
+  const newScreenMode = isPortrait ? "portrait" : "landscape"
+
+  if (newScreenMode !== currentSettings.lastScreenMode) {
+    currentSettings.lastScreenMode = newScreenMode
+    saveSettings({ lastScreenMode: newScreenMode })
+
+    if (currentSettings.autoDetection) {
+      // Auto hide comments in portrait, show in landscape
+      const shouldHideComments = isPortrait
+      updateCommentsVisibility(shouldHideComments)
+    }
+
+    // Send status update to popup if it's open
+    sendStatusUpdate()
+  }
+}
 
 function updateCommentsVisibility(hide) {
   const styleId = "hide-comments-style"
@@ -25,9 +114,16 @@ function updateCommentsVisibility(hide) {
   }
 }
 
-// Function to find navigation buttons
+function shouldHideComments() {
+  if (currentSettings.autoDetection) {
+    return currentSettings.lastScreenMode === "portrait"
+  } else {
+    return currentSettings.hideComments
+  }
+}
+
+// Scroll navigation functionality (preserved from original)
 function findNavigationButtons() {
-  // Look for the navigation container and buttons
   const navButtons = document.querySelectorAll('button[type="button"]')
   let prevButton = null
   let nextButton = null
@@ -38,12 +134,9 @@ function findNavigationButtons() {
       const ariaLabel = svg.getAttribute("aria-label")
       const title = svg.querySelector("title")?.textContent
 
-      // Check for "Go back" or previous indicators
       if (ariaLabel === "Go back" || title === "Go back") {
         prevButton = button
-      }
-      // Check for "Next" indicators
-      else if (ariaLabel === "Next" || title === "Next") {
+      } else if (ariaLabel === "Next" || title === "Next") {
         nextButton = button
       }
     }
@@ -52,11 +145,11 @@ function findNavigationButtons() {
   return { prevButton, nextButton }
 }
 
-// Function to navigate posts/reels
 function navigatePost(direction) {
+  if (!currentSettings.scrollNavigation) return
+
   const currentTime = Date.now()
 
-  // Prevent rapid scrolling
   if (currentTime - lastScrollTime < SCROLL_DELAY) {
     return
   }
@@ -66,26 +159,21 @@ function navigatePost(direction) {
   const { prevButton, nextButton } = findNavigationButtons()
 
   if (direction === "next" && nextButton) {
-    // Check if button is enabled (not disabled)
     if (!nextButton.disabled && nextButton.offsetParent !== null) {
       nextButton.click()
     }
   } else if (direction === "prev" && prevButton) {
-    // Check if button is enabled (not disabled)
     if (!prevButton.disabled && prevButton.offsetParent !== null) {
       prevButton.click()
     }
   }
 }
 
-// Function to handle wheel events
 function handleWheelEvent(event) {
-  // Only handle if we're in a post/reel modal
-  if (!isInPostModal()) {
+  if (!currentSettings.scrollNavigation || !isInPostModal()) {
     return
   }
 
-  // Prevent default scrolling behavior
   event.preventDefault()
   event.stopPropagation()
 
@@ -95,30 +183,24 @@ function handleWheelEvent(event) {
 
   isScrolling = true
 
-  // Determine scroll direction
   const deltaY = event.deltaY
 
   if (deltaY > 0) {
-    // Scrolling down - go to next post
     navigatePost("next")
   } else if (deltaY < 0) {
-    // Scrolling up - go to previous post
     navigatePost("prev")
   }
 
-  // Reset scrolling flag after delay
   setTimeout(() => {
     isScrolling = false
   }, SCROLL_DELAY)
 }
 
-// Function to check if we're in a post/reel modal
 function isInPostModal() {
   const urlPath = window.location.pathname
   const hasModal =
     document.querySelector('article[role="presentation"]') !== null
 
-  // Check if we're on a user page with a post open, or in reels
   return (
     hasModal &&
     (urlPath.includes("/p/") ||
@@ -127,70 +209,75 @@ function isInPostModal() {
   )
 }
 
-// Function to add scroll listeners
 function addScrollListeners() {
-  // Remove existing listeners first
-  removeScrollListeners()
-
-  // Add wheel event listener with passive: false to allow preventDefault
-  document.addEventListener("wheel", handleWheelEvent, {
-    passive: false,
-    capture: true,
-  })
-}
-
-// Function to remove scroll listeners
-function removeScrollListeners() {
-  document.removeEventListener("wheel", handleWheelEvent, { capture: true })
-}
-
-// Function to handle the visibility of comments when the URL changes
-function handleUrlChange() {
-  const urlPath = window.location.pathname
-  if (urlPath.includes("/p/") || urlPath.includes("/reel/")) {
-    chrome.storage.local.get({ enabled: true }, data => {
-      updateCommentsVisibility(data.enabled)
+  if (currentSettings.scrollNavigation) {
+    removeScrollListeners()
+    document.addEventListener("wheel", handleWheelEvent, {
+      passive: false,
+      capture: true,
     })
   }
 }
 
-// Enhanced observer to handle modal changes and add scroll functionality
+function removeScrollListeners() {
+  document.removeEventListener("wheel", handleWheelEvent, { capture: true })
+}
+
+// URL and modal handling
+function handleUrlChange() {
+  const urlPath = window.location.pathname
+  if (urlPath.includes("/p/") || urlPath.includes("/reel/")) {
+    updateCommentsVisibility(shouldHideComments())
+  }
+
+  // Update screen detection
+  if (currentSettings.autoDetection) {
+    detectScreenMode()
+  }
+}
+
+// DOM observation (preserved from original)
 const observer = new MutationObserver(mutations => {
   mutations.forEach(mutation => {
     mutation.addedNodes.forEach(node => {
-      if (node.nodeType === 1 && node.matches('article[role="presentation"]')) {
+      if (
+        node.nodeType === 1 &&
+        node.matches &&
+        node.matches('article[role="presentation"]')
+      ) {
         handleUrlChange()
-        // Add scroll listeners when a post modal is opened
-        setTimeout(addScrollListeners, 100) // Small delay to ensure DOM is ready
+        if (currentSettings.scrollNavigation) {
+          setTimeout(addScrollListeners, 100)
+        }
       }
     })
 
-    // Check for removed nodes (modal closed)
     mutation.removedNodes.forEach(node => {
       if (
         node.nodeType === 1 &&
         node.matches &&
         node.matches('article[role="presentation"]')
       ) {
-        // Remove scroll listeners when modal is closed
         removeScrollListeners()
       }
     })
   })
 })
 
-observer.observe(document.body, {
-  childList: true,
-  subtree: true,
-})
+function startObserving() {
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  })
+}
 
-// Handle URL changes (for SPA navigation)
+// URL change detection for SPA
 let currentUrl = window.location.href
 setInterval(() => {
   if (currentUrl !== window.location.href) {
     currentUrl = window.location.href
 
-    if (isInPostModal()) {
+    if (isInPostModal() && currentSettings.scrollNavigation) {
       setTimeout(addScrollListeners, 100)
     } else {
       removeScrollListeners()
@@ -200,24 +287,88 @@ setInterval(() => {
   }
 }, 500)
 
-// Initial setup
-setTimeout(() => {
-  handleUrlChange()
-  if (isInPostModal()) {
-    addScrollListeners()
-  }
-}, 1000)
-
-// Handle messages from background script
+// Message handling for popup communication
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.enabled !== undefined) {
-    updateCommentsVisibility(message.enabled)
-    sendResponse({ status: "Done" })
+  switch (message.type) {
+    case "autoDetectionChanged":
+      currentSettings.autoDetection = message.enabled
+      saveSettings({ autoDetection: message.enabled })
+      setupScreenDetection()
+
+      if (message.enabled) {
+        detectScreenMode()
+      } else {
+        // When auto detection is disabled, use manual setting
+        updateCommentsVisibility(currentSettings.hideComments)
+      }
+
+      sendResponse({ status: "Auto detection updated" })
+      break
+
+    case "hideCommentsChanged":
+      currentSettings.hideComments = message.enabled
+      saveSettings({ hideComments: message.enabled })
+
+      // Only apply manual setting if auto detection is off
+      if (!currentSettings.autoDetection) {
+        updateCommentsVisibility(message.enabled)
+      }
+
+      sendResponse({ status: "Hide comments updated" })
+      break
+
+    case "scrollNavigationChanged":
+      currentSettings.scrollNavigation = message.enabled
+      saveSettings({ scrollNavigation: message.enabled })
+
+      if (message.enabled && isInPostModal()) {
+        addScrollListeners()
+      } else {
+        removeScrollListeners()
+      }
+
+      sendResponse({ status: "Scroll navigation updated" })
+      break
+
+    case "getStatus":
+      sendStatusUpdate()
+      sendResponse({ status: "Status sent" })
+      break
+
+    // Legacy support for old background script
+    case undefined:
+      if (message.enabled !== undefined) {
+        currentSettings.hideComments = message.enabled
+        saveSettings({ hideComments: message.enabled })
+
+        if (!currentSettings.autoDetection) {
+          updateCommentsVisibility(message.enabled)
+        }
+
+        sendResponse({ status: "Done" })
+      }
+      break
+
+    default:
+      sendResponse({ status: "Unknown message type" })
   }
+
   return true
 })
 
-// Cleanup on page unload
+function sendStatusUpdate() {
+  try {
+    chrome.runtime.sendMessage({
+      type: "statusUpdate",
+      settings: currentSettings,
+    })
+  } catch (error) {
+    // Extension context may be invalid, ignore
+  }
+}
+
+// Cleanup
 window.addEventListener("beforeunload", () => {
   removeScrollListeners()
+  window.removeEventListener("resize", handleResize)
 })

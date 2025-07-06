@@ -1,15 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "Hide Instagram Comments & Scroll Navigation",
+  "name": "IG Enhancer",
   "version": "1.0",
-  "description": "Hides comments and adds scroll navigation for Instagram posts and reels.",
+  "description": "Hide comments, scroll navigation, and auto screen detection for Instagram.",
   "permissions": ["activeTab", "storage", "tabs"],
   "action": {
-    "default_icon": {
-      "48": "icon-disabled.png"
-    },
-    "default_title": "Toggle Comments & Navigation"
+  "default_popup": "popup.html",
+  "default_icon": {
+    "16": "icons/icon-disabled.png",
+    "48": "icons/icon-disabled.png",
+    "128": "icons/icon-disabled.png"
   },
+  "default_title": "Instagram Enhancer Settings"
+},
   "background": {
     "service_worker": "background.js"
   },
@@ -22,6 +25,8 @@
     }
   ],
   "icons": {
-    "48": "icon-disabled.png"
+    "16": "icons/icon-disabled.png",
+    "48": "icons/icon-disabled.png",
+    "128": "icons/icon-disabled.png"
   }
 }
