@@ -16,6 +16,75 @@ chrome.runtime.onStartup.addListener(() => {
   updateIconBasedOnDomain()
 })
 
+// Handle keyboard shortcuts
+chrome.commands.onCommand.addListener(command => {
+  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+    const activeTab = tabs[0]
+
+    // Only work on Instagram pages
+    if (!activeTab || !activeTab.url.includes("instagram.com")) {
+      return
+    }
+
+    switch (command) {
+      case "toggle-auto-detection":
+        toggleAutoDetection(activeTab)
+        break
+      case "toggle-hide-comments":
+        toggleHideComments(activeTab)
+        break
+      case "toggle-scroll-navigation":
+        toggleScrollNavigation(activeTab)
+        break
+    }
+  })
+})
+
+function toggleAutoDetection(tab) {
+  chrome.storage.local.get({ autoDetection: false }, data => {
+    const newState = !data.autoDetection
+    chrome.storage.local.set({ autoDetection: newState }, () => {
+      sendMessageWithRetry(tab.id, {
+        type: "autoDetectionChanged",
+        enabled: newState,
+      })
+      updateIconForTab(tab)
+    })
+  })
+}
+
+function toggleHideComments(tab) {
+  chrome.storage.local.get(
+    { hideComments: true, autoDetection: false },
+    data => {
+      // Only toggle if auto detection is off
+      if (!data.autoDetection) {
+        const newState = !data.hideComments
+        chrome.storage.local.set({ hideComments: newState }, () => {
+          sendMessageWithRetry(tab.id, {
+            type: "hideCommentsChanged",
+            enabled: newState,
+          })
+          updateIconForTab(tab)
+        })
+      }
+    }
+  )
+}
+
+function toggleScrollNavigation(tab) {
+  chrome.storage.local.get({ scrollNavigation: true }, data => {
+    const newState = !data.scrollNavigation
+    chrome.storage.local.set({ scrollNavigation: newState }, () => {
+      sendMessageWithRetry(tab.id, {
+        type: "scrollNavigationChanged",
+        enabled: newState,
+      })
+      updateIconForTab(tab)
+    })
+  })
+}
+
 // Handle action clicks (when popup is not available or for quick toggle)
 chrome.action.onClicked.addListener(tab => {
   // This will only trigger if popup is not set or fails to load
@@ -66,7 +135,7 @@ function updateIconForTab(tab) {
       lastScreenMode: "landscape",
     },
     data => {
-      let iconPath = "icon-disabled.png"
+      let iconPath = "icons/icon-disabled.png"
 
       if (tab.url && tab.url.includes("instagram.com")) {
         // Show enabled icon if ANY feature is active

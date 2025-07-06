@@ -76,6 +76,13 @@
         line-height: 1.3;
       }
 
+      .setting-shortcut {
+        font-size: 11px;
+        color: #0095f6;
+        font-weight: 500;
+        margin-top: 2px;
+      }
+
       .toggle-container {
         position: relative;
       }
@@ -182,6 +189,10 @@
         color: #c7c7c7;
       }
 
+      .setting-item.disabled .setting-shortcut {
+        color: #c7c7c7;
+      }
+
       .setting-item:hover:not(.disabled) {
         background: rgba(0, 149, 246, 0.05);
         margin-left: -20px;
@@ -199,8 +210,8 @@
   <body>
     <div class="popup-container">
       <div class="header">
-        <h2>Instagram Enhancer</h2>
-        <div class="version">v2.0</div>
+        <h2>IG Enhancer</h2>
+        <div class="version">v1.0</div>
       </div>
 
       <div class="settings-section">
@@ -210,6 +221,7 @@
             <span class="setting-description"
               >Automatically hide comments on portrait screens</span
             >
+            <div class="setting-shortcut">Alt+A</div>
           </div>
           <div class="toggle-container">
             <input type="checkbox" id="autoDetection" class="toggle-input" />
@@ -223,6 +235,7 @@
             <span class="setting-description"
               >Manually hide Instagram comments section</span
             >
+            <div class="setting-shortcut">Alt+H</div>
           </div>
           <div class="toggle-container">
             <input type="checkbox" id="hideComments" class="toggle-input" />
@@ -236,6 +249,7 @@
             <span class="setting-description"
               >Use mouse wheel to navigate posts</span
             >
+            <div class="setting-shortcut">Alt+S</div>
           </div>
           <div class="toggle-container">
             <input type="checkbox" id="scrollNavigation" class="toggle-input" />
@@ -257,7 +271,7 @@
 
       <div class="footer">
         <div class="note">
-          <small>⚡ Changes apply instantly</small>
+          <small>⚡ Changes apply instantly • ⌨️ Use keyboard shortcuts</small>
         </div>
       </div>
     </div>
