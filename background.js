@@ -5,6 +5,7 @@ chrome.runtime.onInstalled.addListener(() => {
     autoDetection: false,
     hideComments: true,
     scrollNavigation: true,
+    videoControls: false,
     lastScreenMode: "landscape",
   }
 
@@ -35,6 +36,9 @@ chrome.commands.onCommand.addListener(command => {
         break
       case "toggle-scroll-navigation":
         toggleScrollNavigation(activeTab)
+        break
+      case "toggle-video-controls":
+        toggleVideoControls(activeTab)
         break
     }
   })
@@ -78,6 +82,19 @@ function toggleScrollNavigation(tab) {
     chrome.storage.local.set({ scrollNavigation: newState }, () => {
       sendMessageWithRetry(tab.id, {
         type: "scrollNavigationChanged",
+        enabled: newState,
+      })
+      updateIconForTab(tab)
+    })
+  })
+}
+
+function toggleVideoControls(tab) {
+  chrome.storage.local.get({ videoControls: false }, data => {
+    const newState = !data.videoControls
+    chrome.storage.local.set({ videoControls: newState }, () => {
+      sendMessageWithRetry(tab.id, {
+        type: "videoControlsChanged",
         enabled: newState,
       })
       updateIconForTab(tab)
@@ -132,6 +149,7 @@ function updateIconForTab(tab) {
       hideComments: true,
       autoDetection: false,
       scrollNavigation: true,
+      videoControls: false,
       lastScreenMode: "landscape",
     },
     data => {
@@ -142,6 +160,7 @@ function updateIconForTab(tab) {
         const hasActiveFeatures =
           data.autoDetection ||
           data.scrollNavigation ||
+          data.videoControls ||
           (!data.autoDetection && data.hideComments)
 
         iconPath = hasActiveFeatures
@@ -177,6 +196,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       changes.hideComments ||
       changes.autoDetection ||
       changes.scrollNavigation ||
+      changes.videoControls ||
       changes.lastScreenMode
     ) {
       updateIconBasedOnDomain()

@@ -3,6 +3,7 @@ let currentSettings = {
   autoDetection: false,
   hideComments: true,
   scrollNavigation: true,
+  videoControls: false,
   lastScreenMode: "landscape",
 }
 
@@ -12,6 +13,10 @@ let lastScrollTime = 0
 let resizeTimeout = null
 const SCROLL_DELAY = 150
 const RESIZE_DELAY = 300
+
+// Video controls specific variables
+const knownVideoElements = new Set()
+let videoObserver = null
 
 // Initialize extension
 initializeExtension()
@@ -24,6 +29,11 @@ function initializeExtension() {
       addScrollListeners()
     }
     startObserving()
+
+    // Initialize video controls if enabled
+    if (currentSettings.videoControls) {
+      initializeVideoControls()
+    }
   })
 }
 
@@ -32,6 +42,7 @@ function loadSettings(callback) {
     autoDetection: false,
     hideComments: true,
     scrollNavigation: true,
+    videoControls: false,
     lastScreenMode: "landscape",
   }
 
@@ -51,8 +62,14 @@ function setupScreenDetection() {
   if (currentSettings.autoDetection) {
     detectScreenMode()
     window.addEventListener("resize", handleResize)
+    // Also listen for screen orientation changes
+    window.addEventListener("orientationchange", handleResize)
+    // And for when window moves between screens
+    window.addEventListener("focus", handleResize)
   } else {
     window.removeEventListener("resize", handleResize)
+    window.removeEventListener("orientationchange", handleResize)
+    window.removeEventListener("focus", handleResize)
   }
 }
 
@@ -77,19 +94,19 @@ function detectScreenMode() {
   const isPortrait = aspectRatio < 1.2
   const newScreenMode = isPortrait ? "portrait" : "landscape"
 
-  if (newScreenMode !== currentSettings.lastScreenMode) {
-    currentSettings.lastScreenMode = newScreenMode
-    saveSettings({ lastScreenMode: newScreenMode })
+  // Always update settings and send status update, even if mode hasn't changed
+  // This ensures the popup shows the correct current state
+  currentSettings.lastScreenMode = newScreenMode
+  saveSettings({ lastScreenMode: newScreenMode })
 
-    if (currentSettings.autoDetection) {
-      // Auto hide comments in portrait, show in landscape
-      const shouldHideComments = isPortrait
-      updateCommentsVisibility(shouldHideComments)
-    }
-
-    // Send status update to popup if it's open
-    sendStatusUpdate()
+  if (currentSettings.autoDetection) {
+    // Auto hide comments in portrait, show in landscape
+    const shouldHideComments = isPortrait
+    updateCommentsVisibility(shouldHideComments)
   }
+
+  // Always send status update to popup to ensure it's current
+  sendStatusUpdate()
 }
 
 function updateCommentsVisibility(hide) {
@@ -223,6 +240,200 @@ function removeScrollListeners() {
   document.removeEventListener("wheel", handleWheelEvent, { capture: true })
 }
 
+// Video Controls Functionality
+function initializeVideoControls() {
+  if (!currentSettings.videoControls) return
+
+  addVideoControlsCSS()
+  modifyAllPresentVideos()
+  setupVideoMutationObserver()
+}
+
+function addVideoControlsCSS() {
+  const styleId = "ig-enhancer-video-controls"
+
+  if (document.getElementById(styleId)) return
+
+  const style = document.createElement("style")
+  style.id = styleId
+  style.textContent = `
+    /* Override Instagram's hiding of native video controls */
+    video[data-ig-enhancer-controls="true"]::-webkit-media-controls {
+      display: flex !important;
+    }
+    
+    /* Ensure controls are visible */
+    video[data-ig-enhancer-controls="true"]::-webkit-media-controls-panel {
+      display: flex !important;
+    }
+    
+    /* Make overlays transparent to clicks when video controls are enabled */
+    video[data-ig-enhancer-controls="true"] + div {
+      pointer-events: none;
+    }
+    
+    /* Restore pointer events for buttons within overlays */
+    video[data-ig-enhancer-controls="true"] + div button {
+      pointer-events: auto;
+    }
+  `
+
+  document.head.appendChild(style)
+}
+
+function removeVideoControlsCSS() {
+  const styleElement = document.getElementById("ig-enhancer-video-controls")
+  if (styleElement) {
+    styleElement.remove()
+  }
+}
+
+function getVideos(contextNode = document) {
+  return Array.from(contextNode.querySelectorAll("video"))
+}
+
+function modifyVideo(video) {
+  if (!currentSettings.videoControls) return
+
+  if (videoControlsAlreadyInitialized(video)) return
+
+  // Mark video as processed
+  video.dataset.igEnhancerControls = "true"
+  knownVideoElements.add(video)
+
+  // Enable native controls
+  video.controls = true
+
+  // Clear controlsList to remove restrictions (like hiding download)
+  video.setAttribute("controlsList", "")
+
+  // Hide Instagram's custom overlays that interfere with controls
+  hideVideoOverlays(video)
+}
+
+function videoControlsAlreadyInitialized(video) {
+  return video.dataset.igEnhancerControls === "true"
+}
+
+function hideVideoOverlays(video) {
+  // Find and hide Instagram's custom video overlays
+  const parent = video.parentElement
+  if (!parent) return
+
+  // Hide overlays that prevent clicks from reaching video controls
+  const overlays = parent.querySelectorAll('div[style*="position: absolute"]')
+  overlays.forEach(overlay => {
+    const rect = overlay.getBoundingClientRect()
+    const videoRect = video.getBoundingClientRect()
+
+    // If overlay covers most of the video, make it transparent to clicks
+    if (
+      rect.width > videoRect.width * 0.8 &&
+      rect.height > videoRect.height * 0.8
+    ) {
+      overlay.style.pointerEvents = "none"
+
+      // But restore pointer events for buttons within the overlay
+      const buttons = overlay.querySelectorAll('button, [role="button"]')
+      buttons.forEach(button => {
+        button.style.pointerEvents = "auto"
+      })
+    }
+  })
+
+  // Also look for specific Instagram overlay classes
+  const knownOverlaySelectors = [
+    ".videoSpritePlayButton",
+    '[aria-label="Play"]',
+    '[aria-label="Control"]',
+  ]
+
+  knownOverlaySelectors.forEach(selector => {
+    const elements = parent.querySelectorAll(selector)
+    elements.forEach(element => {
+      const overlay = element.closest("div")
+      if (overlay && overlay !== video) {
+        overlay.style.pointerEvents = "none"
+      }
+    })
+  })
+}
+
+function modifyAllPresentVideos() {
+  if (!currentSettings.videoControls) return
+
+  getVideos().forEach(modifyVideo)
+}
+
+function removeVideoControls(video) {
+  if (!videoControlsAlreadyInitialized(video)) return
+
+  // Remove our modifications
+  delete video.dataset.igEnhancerControls
+  knownVideoElements.delete(video)
+
+  // Disable native controls
+  video.controls = false
+
+  // Restore Instagram's controlsList
+  video.setAttribute("controlsList", "nodownload")
+
+  // Restore overlay pointer events
+  const parent = video.parentElement
+  if (parent) {
+    const overlays = parent.querySelectorAll(
+      'div[style*="pointer-events: none"]'
+    )
+    overlays.forEach(overlay => {
+      overlay.style.pointerEvents = ""
+    })
+  }
+}
+
+function removeAllVideoControls() {
+  knownVideoElements.forEach(video => {
+    if (document.contains(video)) {
+      removeVideoControls(video)
+    }
+  })
+  knownVideoElements.clear()
+}
+
+function setupVideoMutationObserver() {
+  if (videoObserver) return
+
+  videoObserver = new MutationObserver(mutations => {
+    if (!currentSettings.videoControls) return
+
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === 1) {
+          // Element node
+          if (node.tagName === "VIDEO") {
+            modifyVideo(node)
+          } else if (node.querySelectorAll) {
+            // Check for videos in added subtrees
+            const videos = node.querySelectorAll("video")
+            videos.forEach(modifyVideo)
+          }
+        }
+      })
+    })
+  })
+
+  videoObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  })
+}
+
+function disconnectVideoObserver() {
+  if (videoObserver) {
+    videoObserver.disconnect()
+    videoObserver = null
+  }
+}
+
 // URL and modal handling
 function handleUrlChange() {
   const urlPath = window.location.pathname
@@ -233,6 +444,11 @@ function handleUrlChange() {
   // Update screen detection
   if (currentSettings.autoDetection) {
     detectScreenMode()
+  }
+
+  // Update video controls if enabled
+  if (currentSettings.videoControls) {
+    setTimeout(modifyAllPresentVideos, 100)
   }
 }
 
@@ -330,7 +546,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: "Scroll navigation updated" })
       break
 
+    case "videoControlsChanged":
+      currentSettings.videoControls = message.enabled
+      saveSettings({ videoControls: message.enabled })
+
+      if (message.enabled) {
+        initializeVideoControls()
+      } else {
+        removeAllVideoControls()
+        removeVideoControlsCSS()
+        disconnectVideoObserver()
+      }
+
+      sendResponse({ status: "Video controls updated" })
+      break
+
     case "getStatus":
+      // Force a fresh screen mode detection when popup requests status
+      if (currentSettings.autoDetection) {
+        detectScreenMode()
+      }
       sendStatusUpdate()
       sendResponse({ status: "Status sent" })
       break
@@ -371,4 +606,7 @@ function sendStatusUpdate() {
 window.addEventListener("beforeunload", () => {
   removeScrollListeners()
   window.removeEventListener("resize", handleResize)
+  window.removeEventListener("orientationchange", handleResize)
+  window.removeEventListener("focus", handleResize)
+  disconnectVideoObserver()
 })

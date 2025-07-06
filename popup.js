@@ -3,12 +3,16 @@ const DEFAULT_SETTINGS = {
   autoDetection: false,
   hideComments: true,
   scrollNavigation: true,
+  videoControls: false,
   lastScreenMode: "landscape",
 }
 
 // DOM elements
-let autoDetectionToggle, hideCommentsToggle, scrollNavigationToggle
-let screenModeStatus, commentsStatus
+let autoDetectionToggle,
+  hideCommentsToggle,
+  scrollNavigationToggle,
+  videoControlsToggle
+let screenModeStatus, commentsStatus, videoControlsStatus
 
 // Initialize popup
 document.addEventListener("DOMContentLoaded", () => {
@@ -22,8 +26,10 @@ function initializeElements() {
   autoDetectionToggle = document.getElementById("autoDetection")
   hideCommentsToggle = document.getElementById("hideComments")
   scrollNavigationToggle = document.getElementById("scrollNavigation")
+  videoControlsToggle = document.getElementById("videoControls")
   screenModeStatus = document.getElementById("screenMode")
   commentsStatus = document.getElementById("commentsStatus")
+  videoControlsStatus = document.getElementById("videoControlsStatus")
 }
 
 function loadSettings() {
@@ -31,6 +37,7 @@ function loadSettings() {
     autoDetectionToggle.checked = settings.autoDetection
     hideCommentsToggle.checked = settings.hideComments
     scrollNavigationToggle.checked = settings.scrollNavigation
+    videoControlsToggle.checked = settings.videoControls
 
     updateHideCommentsState()
     updateStatusDisplay(settings)
@@ -44,6 +51,7 @@ function setupEventListeners() {
     "change",
     handleScrollNavigationChange
   )
+  videoControlsToggle.addEventListener("change", handleVideoControlsChange)
 }
 
 function handleAutoDetectionChange() {
@@ -83,6 +91,20 @@ function handleScrollNavigationChange() {
   // Send message to content script
   sendMessageToActiveTab({
     type: "scrollNavigationChanged",
+    enabled: enabled,
+  })
+
+  updateStatus()
+}
+
+function handleVideoControlsChange() {
+  const enabled = videoControlsToggle.checked
+
+  updateSetting("videoControls", enabled)
+
+  // Send message to content script
+  sendMessageToActiveTab({
+    type: "videoControlsChanged",
     enabled: enabled,
   })
 
@@ -152,12 +174,44 @@ function updateStatusDisplay(settings) {
     }`
   }
   commentsStatus.textContent = commentsState
+
+  // Update video controls status
+  const videoControlsState = settings.videoControls ? "Enabled" : "Disabled"
+  videoControlsStatus.textContent = videoControlsState
+  videoControlsStatus.className = `status-value ${
+    settings.videoControls ? "active" : "inactive"
+  }`
 }
 
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "statusUpdate") {
     updateStatusDisplay(message.settings)
+  }
+})
+
+// Listen for storage changes to update popup in real-time
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local") {
+    // Update popup when any setting changes
+    chrome.storage.local.get(DEFAULT_SETTINGS, settings => {
+      updateStatusDisplay(settings)
+
+      // Also update the toggle states if they changed
+      if (changes.autoDetection) {
+        autoDetectionToggle.checked = settings.autoDetection
+        updateHideCommentsState()
+      }
+      if (changes.hideComments) {
+        hideCommentsToggle.checked = settings.hideComments
+      }
+      if (changes.scrollNavigation) {
+        scrollNavigationToggle.checked = settings.scrollNavigation
+      }
+      if (changes.videoControls) {
+        videoControlsToggle.checked = settings.videoControls
+      }
+    })
   }
 })
 
