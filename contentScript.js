@@ -33,9 +33,11 @@ function handleUrlChange() {
 // Observe changes in the DOM to detect when the modal is opened
 const observer = new MutationObserver(mutations => {
   mutations.forEach(mutation => {
-    if (mutation.addedNodes.length || mutation.removedNodes.length) {
-      handleUrlChange()
-    }
+    mutation.addedNodes.forEach(node => {
+      if (node.nodeType === 1 && node.matches('article[role="presentation"]')) {
+        handleUrlChange()
+      }
+    })
   })
 })
 
