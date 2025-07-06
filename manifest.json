@@ -1,27 +1,27 @@
 {
-    "manifest_version": 3,
-    "name": "Hide Instagram Comments",
-    "version": "1.0",
-    "description": "Automatically hides comments section on Instagram video pages.",
-    "permissions": ["activeTab", "storage", "tabs"],
-    "action": {
-      "default_icon": {
-        "48": "icon-disabled.png"
-      },
-      "default_title": "Toggle Comments"
-    },
-    "background": {
-      "service_worker": "background.js"
-    },
-    "content_scripts": [
-      {
-        "matches": ["*://*.instagram.com/*"],
-        "js": ["contentScript.js"],
-        "run_at": "document_end"
-      }
-    ],
-    "icons": {
+  "manifest_version": 3,
+  "name": "Hide Instagram Comments & Scroll Navigation",
+  "version": "1.0",
+  "description": "Hides comments and adds scroll navigation for Instagram posts and reels.",
+  "permissions": ["activeTab", "storage", "tabs"],
+  "action": {
+    "default_icon": {
       "48": "icon-disabled.png"
+    },
+    "default_title": "Toggle Comments & Navigation"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.instagram.com/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_end",
+      "all_frames": false
     }
+  ],
+  "icons": {
+    "48": "icon-disabled.png"
   }
-  
+}
