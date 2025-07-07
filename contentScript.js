@@ -117,7 +117,6 @@ function createTikTokSidebar() {
           <path d="M20.656 17.008a9.993 9.993 0 1 0-3.59 3.615L22 22Z" stroke="currentColor" stroke-width="1.5"/>
         </svg>
       </button>
-      <div class="count comment-count">0</div>
     </div>
     
     <div class="sidebar-item share-section">
@@ -294,18 +293,30 @@ function addTikTokSidebarCSS() {
       transform: scale(0.95);
     }
 
+    #ig-enhancer-tiktok-sidebar .sidebar-item .action-btn.like-btn.liked {
+      background: #ed4956 !important;
+      color: #ffffff !important;
+      border-color: #ed4956 !important;
+      border: 2px solid #ed4956 !important;
+    }
+
+    #ig-enhancer-tiktok-sidebar .sidebar-item .action-btn.like-btn.liked:hover {
+      background: #c73650 !important;
+      border-color: #c73650 !important;
+    }
+
+    #ig-enhancer-tiktok-sidebar .sidebar-item .action-btn.like-btn.liked svg {
+      color: #ffffff !important;
+    }
+
+    #ig-enhancer-tiktok-sidebar .sidebar-item .action-btn.like-btn.liked svg path {
+      fill: #ffffff !important;
+      stroke: #ffffff !important;
+    }
+
+    /* Debug - this should make ANY liked button have a yellow border */
     .like-btn.liked {
-      background: rgba(237, 73, 86, 0.8);
-      color: #ed4956;
-    }
-
-    .like-btn.liked:hover {
-      background: rgba(237, 73, 86, 0.9);
-    }
-
-    .like-btn.liked svg path {
-      fill: #ed4956;
-      stroke: #ed4956;
+      border: 3px solid yellow !important;
     }
 
     .count {
@@ -382,86 +393,147 @@ function setupSidebarEventListeners() {
   shareBtn.addEventListener("click", handleShareClick)
 }
 
+// Add a flag to prevent infinite loops
+let isUpdatingSidebar = false
+let sidebarUpdateTimeout = null
+
 function populateSidebarData() {
-  if (!sidebarElement) return
+  if (!sidebarElement || isUpdatingSidebar) return
 
-  try {
-    // Extract username and avatar from the header
-    // Is there an open post / reel dialog?
-    const dialog = document.querySelector('div[role="dialog"]')
+  // Debounce rapid calls
+  if (sidebarUpdateTimeout) {
+    clearTimeout(sidebarUpdateTimeout)
+  }
 
-    // The relevant header:
-    const headerScope = dialog
-      ? dialog.querySelector("header") // <header> inside overlay
-      : document.querySelector("main header") // first header on a profile page
+  sidebarUpdateTimeout = setTimeout(() => {
+    try {
+      isUpdatingSidebar = true // Prevent recursive calls
 
-    // The author avatar inside that header
-    const userAvatar = headerScope?.querySelector(
-      'img[alt$="\'s profile picture"]'
-    )
+      // Extract username and avatar from the header
+      const dialog = document.querySelector('div[role="dialog"]')
+      const headerScope = dialog
+        ? dialog.querySelector("header")
+        : document.querySelector("main header")
 
-    if (userAvatar) {
-      const avatarSrc = userAvatar.src
-      const username = userAvatar.alt.replace(/'s profile picture$/, "")
+      const userAvatar = headerScope?.querySelector(
+        'img[alt$="\'s profile picture"]'
+      )
 
-      sidebarElement.querySelector(".user-avatar").src = avatarSrc
-      sidebarElement.querySelector(".user-link").href = `/${username}/`
-      sidebarElement.dataset.username = username
-    }
+      if (userAvatar) {
+        const avatarSrc = userAvatar.src
+        const username = userAvatar.alt.replace(/'s profile picture$/, "")
 
-    // Extract like count - try multiple selectors
-    const likeSelectors = [
-      'a[href*="/liked_by/"] span',
-      "section a span",
-      "section span",
-    ]
+        const avatarImg = sidebarElement.querySelector(".user-avatar")
+        const userLink = sidebarElement.querySelector(".user-link")
 
-    let likeCount = "0"
-    for (const selector of likeSelectors) {
-      const elements = document.querySelectorAll(selector)
-      for (const element of elements) {
-        const text = element.textContent.trim()
-        if (text.includes("like")) {
-          likeCount = text.split(" ")[0].replace(/[^\d,]/g, "")
-          break
+        if (avatarImg.src !== avatarSrc) {
+          avatarImg.src = avatarSrc
+        }
+        if (userLink.href !== `/${username}/`) {
+          userLink.href = `/${username}/`
+        }
+        if (sidebarElement.dataset.username !== username) {
+          sidebarElement.dataset.username = username
         }
       }
-      if (likeCount !== "0") break
-    }
 
-    sidebarElement.querySelector(".like-count").textContent =
-      formatCount(likeCount)
+      // Extract like count
+      const likeSelectors = [
+        'a[href*="/liked_by/"] span',
+        "section a span",
+        "section span",
+      ]
 
-    // Count comments more reliably
-    const commentElements = document.querySelectorAll('ul li[role="button"]')
-    let commentCount = 0
-    commentElements.forEach(el => {
-      if (el.querySelector('img[alt*="profile picture"]')) {
-        commentCount++
+      let likeCount = "0"
+      for (const selector of likeSelectors) {
+        const elements = document.querySelectorAll(selector)
+        for (const element of elements) {
+          const text = element.textContent.trim()
+          if (text.includes("like")) {
+            likeCount = text.split(" ")[0].replace(/[^\d,]/g, "")
+            break
+          }
+        }
+        if (likeCount !== "0") break
       }
-    })
 
-    sidebarElement.querySelector(".comment-count").textContent = formatCount(
-      commentCount.toString()
-    )
+      const likeCountElement = sidebarElement.querySelector(".like-count")
+      const formattedLikeCount = formatCount(likeCount)
+      if (likeCountElement.textContent !== formattedLikeCount) {
+        likeCountElement.textContent = formattedLikeCount
+      }
 
-    // Check if post is already liked by looking for filled heart
-    const likeButtonSection = document.querySelector("section")
-    if (likeButtonSection) {
-      const filledHeart = likeButtonSection.querySelector(
-        'svg[fill="rgb(237, 73, 86)"]'
-      )
+      // Count comments (using simple method for now)
+      // const commentCount = getCommentCount()
+      // const commentCountElement = sidebarElement.querySelector(".comment-count")
+      // const formattedCommentCount = formatCount(commentCount.toString())
+      // if (commentCountElement.textContent !== formattedCommentCount) {
+      //   commentCountElement.textContent = formattedCommentCount
+      // }
+
+      // Check if post is already liked
+      const postModal = document.querySelector('article[role="presentation"]')
+      const section = postModal?.querySelector("section")
       const likeBtn = sidebarElement.querySelector(".like-btn")
 
-      if (filledHeart) {
-        likeBtn.classList.add("liked")
-      } else {
-        likeBtn.classList.remove("liked")
+      if (section && likeBtn) {
+        let isLiked = false
+
+        const unlikeSvg = section.querySelector('svg[aria-label="Unlike"]')
+        if (unlikeSvg) {
+          isLiked = true
+        }
+
+        if (!isLiked) {
+          const unlikeTitle = section.querySelector("svg title")
+          if (unlikeTitle && unlikeTitle.textContent === "Unlike") {
+            isLiked = true
+          }
+        }
+
+        if (!isLiked) {
+          const spans = section.querySelectorAll("span.x1rg5ohu")
+          for (const span of spans) {
+            const svg = span.querySelector(
+              'svg[aria-label="Unlike"], svg[aria-label="Like"]'
+            )
+            if (svg) {
+              const path = svg.querySelector("path")
+              if (path) {
+                const pathData = path.getAttribute("d")
+                if (pathData && pathData.includes("M34.6 3.1c-4.5 0")) {
+                  isLiked = true
+                  break
+                }
+              }
+            }
+          }
+        }
+
+        // Only update if state has actually changed
+        const currentlyLiked = likeBtn.classList.contains("liked")
+
+        if (isLiked && !currentlyLiked) {
+          likeBtn.classList.add("liked")
+          likeBtn.style.backgroundColor = "#ed4956"
+          likeBtn.style.borderColor = "#ed4956"
+          console.log(
+            "IG Enhancer: Applied liked state to sidebar button for already-liked post"
+          )
+        } else if (!isLiked && currentlyLiked) {
+          likeBtn.classList.remove("liked")
+          likeBtn.style.backgroundColor = ""
+          likeBtn.style.borderColor = ""
+          console.log("IG Enhancer: Applied unliked state to sidebar button")
+        }
+        // If state hasn't changed, don't log anything
       }
+    } catch (error) {
+      console.log("IG Enhancer: Error populating sidebar data:", error)
+    } finally {
+      isUpdatingSidebar = false // Always reset the flag
     }
-  } catch (error) {
-    console.log("IG Enhancer: Error populating sidebar data:", error)
-  }
+  }, 200) // 200ms debounce
 }
 
 function handleUserProfileClick(event) {
@@ -484,49 +556,88 @@ function handleLikeClick(event) {
   event.stopPropagation()
 
   try {
-    // Find the like button in the section
-    const section = document.querySelector("section")
-    if (section) {
-      const likeButton = section.querySelector("button")
-      if (likeButton) {
-        likeButton.click()
+    if (!sidebarElement) return
 
-        // Toggle visual state immediately for responsiveness
-        const likeBtn = sidebarElement.querySelector(".like-btn")
-        likeBtn.classList.toggle("liked")
+    const postModal = document.querySelector('article[role="presentation"]')
+    if (!postModal) return
 
-        // Update count after a delay
-        setTimeout(() => {
-          populateSidebarData()
-        }, 500)
+    const section = postModal.querySelector("section")
+    if (!section) return
+
+    let likeButton = null
+
+    // Look for the first span that contains the post like button
+    const spans = section.querySelectorAll("span.x1rg5ohu")
+
+    for (let i = 0; i < spans.length; i++) {
+      const span = spans[i]
+      const svg = span.querySelector("svg")
+
+      if (svg) {
+        const ariaLabel = svg.getAttribute("aria-label")
+        const title = svg.querySelector("title")
+        const path = svg.querySelector("path")
+
+        if ((ariaLabel === "Like" || ariaLabel === "Unlike") && title && path) {
+          const pathData = path.getAttribute("d")
+          if (
+            pathData &&
+            (pathData.includes("M16.792 3.904A4.989") ||
+              pathData.includes("M34.6 3.1c-4.5 0"))
+          ) {
+            likeButton = span.querySelector('div[role="button"]')
+            break
+          }
+        }
       }
     }
-  } catch (error) {
-    console.log("IG Enhancer: Error handling like click:", error)
-  }
-}
 
-function handleLikeClick(event) {
-  event.preventDefault()
-  event.stopPropagation()
+    if (likeButton) {
+      // Click the actual Instagram like button
+      likeButton.click()
 
-  try {
-    // Find the like button in the section
-    const section = document.querySelector("section")
-    if (section) {
-      const likeButton = section.querySelector("button")
-      if (likeButton) {
-        likeButton.click()
+      // Wait and check the state
+      setTimeout(() => {
+        if (!sidebarElement) return
 
-        // Toggle visual state immediately for responsiveness
-        const likeBtn = sidebarElement.querySelector(".like-btn")
-        likeBtn.classList.toggle("liked")
+        const updatedPostModal = document.querySelector(
+          'article[role="presentation"]'
+        )
+        const updatedSection = updatedPostModal?.querySelector("section")
 
-        // Update count after a delay
-        setTimeout(() => {
-          populateSidebarData()
-        }, 500)
-      }
+        if (updatedSection) {
+          let isLiked = false
+
+          // Check for unlike aria-label or title
+          const unlikeSvg = updatedSection.querySelector(
+            'svg[aria-label="Unlike"]'
+          )
+          const unlikeTitle = updatedSection.querySelector("svg title")
+
+          if (unlikeSvg) {
+            isLiked = true
+          } else if (unlikeTitle && unlikeTitle.textContent === "Unlike") {
+            isLiked = true
+          }
+
+          // Update sidebar like button appearance
+          const sidebarLikeBtn = sidebarElement.querySelector(".like-btn")
+          if (sidebarLikeBtn) {
+            if (isLiked) {
+              sidebarLikeBtn.classList.add("liked")
+              sidebarLikeBtn.style.backgroundColor = "#ed4956"
+              sidebarLikeBtn.style.borderColor = "#ed4956"
+            } else {
+              sidebarLikeBtn.classList.remove("liked")
+              sidebarLikeBtn.style.backgroundColor = ""
+              sidebarLikeBtn.style.borderColor = ""
+            }
+          }
+        }
+
+        // Update the like count
+        populateSidebarData()
+      }, 1000)
     }
   } catch (error) {
     console.log("IG Enhancer: Error handling like click:", error)
@@ -591,24 +702,40 @@ function setupSidebarObserver() {
     let shouldUpdate = false
 
     mutations.forEach(mutation => {
-      // Check if like counts or comments changed
+      // Ignore changes to our own sidebar element
+      if (
+        mutation.target.id === "ig-enhancer-tiktok-sidebar" ||
+        mutation.target.closest("#ig-enhancer-tiktok-sidebar")
+      ) {
+        return
+      }
+
+      // Only update for significant changes
       if (
         mutation.target.matches &&
         (mutation.target.matches("section") ||
-          mutation.target.closest("section") ||
-          mutation.target.matches("ul._a9ym") ||
-          mutation.target.closest("ul._a9ym"))
+          mutation.target.closest("section")) &&
+        !mutation.target.closest("#ig-enhancer-tiktok-sidebar")
       ) {
-        shouldUpdate = true
+        // Check if this is a meaningful change
+        if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+          shouldUpdate = true
+        } else if (
+          mutation.type === "attributes" &&
+          (mutation.attributeName === "aria-label" ||
+            mutation.attributeName === "fill")
+        ) {
+          shouldUpdate = true
+        }
       }
     })
 
-    if (shouldUpdate && sidebarElement) {
-      // Debounce updates
+    if (shouldUpdate && sidebarElement && !isUpdatingSidebar) {
+      // Debounce updates more aggressively
       clearTimeout(window.sidebarUpdateTimeout)
       window.sidebarUpdateTimeout = setTimeout(() => {
         populateSidebarData()
-      }, 300)
+      }, 500) // Increased debounce time
     }
   })
 
@@ -616,7 +743,7 @@ function setupSidebarObserver() {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["aria-label", "fill"],
+    attributeFilter: ["aria-label", "fill"], // Only watch for specific attribute changes
   })
 }
 

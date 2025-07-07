@@ -226,7 +226,7 @@ function updateIconForTab(tab) {
       commentOverride: null,
     },
     data => {
-      let iconPath = "icons/icon-disabled.png"
+      let iconPath = "icons/icon.png"
 
       if (tab.url && tab.url.includes("instagram.com")) {
         // Show enabled icon if ANY feature is active
@@ -238,9 +238,7 @@ function updateIconForTab(tab) {
           (!data.autoDetection && data.hideComments) ||
           data.commentOverride !== null
 
-        iconPath = hasActiveFeatures
-          ? "icons/icon-enabled.png"
-          : "icons/icon-disabled.png"
+        iconPath = hasActiveFeatures ? "icons/icon.png" : "icons/icon.png"
       }
 
       chrome.action.setIcon({ path: iconPath, tabId: tab.id })
