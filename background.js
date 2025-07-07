@@ -7,6 +7,7 @@ chrome.runtime.onInstalled.addListener(() => {
     scrollNavigation: true,
     videoControls: false,
     lastScreenMode: "landscape",
+    commentOverride: null, // null = no override, true = force hide, false = force show
   }
 
   chrome.storage.local.set(defaultSettings)
@@ -32,7 +33,7 @@ chrome.commands.onCommand.addListener(command => {
         toggleAutoDetection(activeTab)
         break
       case "toggle-hide-comments":
-        toggleHideComments(activeTab)
+        toggleHideCommentsWithOverride(activeTab)
         break
       case "toggle-scroll-navigation":
         toggleScrollNavigation(activeTab)
@@ -47,22 +48,54 @@ chrome.commands.onCommand.addListener(command => {
 function toggleAutoDetection(tab) {
   chrome.storage.local.get({ autoDetection: false }, data => {
     const newState = !data.autoDetection
-    chrome.storage.local.set({ autoDetection: newState }, () => {
-      sendMessageWithRetry(tab.id, {
-        type: "autoDetectionChanged",
-        enabled: newState,
-      })
-      updateIconForTab(tab)
-    })
+    chrome.storage.local.set(
+      {
+        autoDetection: newState,
+        // Clear any comment override when toggling auto detection
+        commentOverride: null,
+      },
+      () => {
+        sendMessageWithRetry(tab.id, {
+          type: "autoDetectionChanged",
+          enabled: newState,
+        })
+        updateIconForTab(tab)
+      }
+    )
   })
 }
 
-function toggleHideComments(tab) {
+function toggleHideCommentsWithOverride(tab) {
   chrome.storage.local.get(
-    { hideComments: true, autoDetection: false },
+    {
+      hideComments: true,
+      autoDetection: false,
+      commentOverride: null,
+      lastScreenMode: "landscape",
+    },
     data => {
-      // Only toggle if auto detection is off
-      if (!data.autoDetection) {
+      if (data.autoDetection) {
+        // When auto detection is enabled, Alt+H works as a temporary override
+        let newOverride
+
+        // Determine current effective state (what comments are actually doing)
+        const currentlyHidden =
+          data.commentOverride !== null
+            ? data.commentOverride
+            : data.lastScreenMode === "portrait"
+
+        // Toggle the override to opposite of current state
+        newOverride = !currentlyHidden
+
+        chrome.storage.local.set({ commentOverride: newOverride }, () => {
+          sendMessageWithRetry(tab.id, {
+            type: "commentOverrideChanged",
+            override: newOverride,
+          })
+          updateIconForTab(tab)
+        })
+      } else {
+        // When auto detection is off, work normally
         const newState = !data.hideComments
         chrome.storage.local.set({ hideComments: newState }, () => {
           sendMessageWithRetry(tab.id, {
@@ -107,10 +140,31 @@ chrome.action.onClicked.addListener(tab => {
   // This will only trigger if popup is not set or fails to load
   // Provides fallback functionality for quick comment toggle
   chrome.storage.local.get(
-    { hideComments: true, autoDetection: false },
+    {
+      hideComments: true,
+      autoDetection: false,
+      commentOverride: null,
+      lastScreenMode: "landscape",
+    },
     data => {
-      // Only toggle if auto detection is off
-      if (!data.autoDetection) {
+      if (data.autoDetection) {
+        // Use override logic for icon clicks too
+        const currentlyHidden =
+          data.commentOverride !== null
+            ? data.commentOverride
+            : data.lastScreenMode === "portrait"
+
+        const newOverride = !currentlyHidden
+
+        chrome.storage.local.set({ commentOverride: newOverride }, () => {
+          sendMessageWithRetry(tab.id, {
+            type: "commentOverrideChanged",
+            override: newOverride,
+          })
+          updateIconForTab(tab)
+        })
+      } else {
+        // Normal behavior when auto detection is off
         const newState = !data.hideComments
         chrome.storage.local.set({ hideComments: newState }, () => {
           sendMessageWithRetry(tab.id, {
@@ -151,6 +205,7 @@ function updateIconForTab(tab) {
       scrollNavigation: true,
       videoControls: false,
       lastScreenMode: "landscape",
+      commentOverride: null,
     },
     data => {
       let iconPath = "icons/icon-disabled.png"
@@ -161,7 +216,8 @@ function updateIconForTab(tab) {
           data.autoDetection ||
           data.scrollNavigation ||
           data.videoControls ||
-          (!data.autoDetection && data.hideComments)
+          (!data.autoDetection && data.hideComments) ||
+          data.commentOverride !== null
 
         iconPath = hasActiveFeatures
           ? "icons/icon-enabled.png"
@@ -197,19 +253,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       changes.autoDetection ||
       changes.scrollNavigation ||
       changes.videoControls ||
-      changes.lastScreenMode
+      changes.lastScreenMode ||
+      changes.commentOverride
     ) {
       updateIconBasedOnDomain()
     }
   }
-})
-
-// Handle messages from popup or content script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "statusUpdate") {
-    // Forward status updates if needed
-    sendResponse({ status: "Status received" })
-  }
-
-  return true
 })

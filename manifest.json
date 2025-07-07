@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "IG Enhancer",
-  "version": "1.0",
-  "description": "Hide comments, scroll navigation, video controls, and auto screen detection for Instagram.",
+  "version": "1.1",
+  "description": "Hide comments, scroll navigation, video controls, and auto screen detection for Instagram with override support.",
   "permissions": ["activeTab", "storage", "tabs"],
   "action": {
     "default_popup": "popup.html",
@@ -42,7 +42,7 @@
         "default": "Alt+H",
         "mac": "Alt+H"
       },
-      "description": "Toggle Hide Comments"
+      "description": "Toggle Hide Comments / Override Auto Mode"
     },
     "toggle-scroll-navigation": {
       "suggested_key": {

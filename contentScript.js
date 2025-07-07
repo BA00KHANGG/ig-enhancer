@@ -5,6 +5,7 @@ let currentSettings = {
   scrollNavigation: true,
   videoControls: false,
   lastScreenMode: "landscape",
+  commentOverride: null, // null = no override, true = force hide, false = force show
 }
 
 let scrollTimeout = null
@@ -44,6 +45,7 @@ function loadSettings(callback) {
     scrollNavigation: true,
     videoControls: false,
     lastScreenMode: "landscape",
+    commentOverride: null,
   }
 
   chrome.storage.local.get(defaultSettings, settings => {
@@ -100,13 +102,39 @@ function detectScreenMode() {
   saveSettings({ lastScreenMode: newScreenMode })
 
   if (currentSettings.autoDetection) {
-    // Auto hide comments in portrait, show in landscape
-    const shouldHideComments = isPortrait
+    // Only clear override when screen mode actually changes and we're switching
+    // to a mode that would naturally match what the override was doing
+    if (currentSettings.commentOverride !== null) {
+      const autoWouldHide = isPortrait
+      if (currentSettings.commentOverride === autoWouldHide) {
+        // Override matches what auto detection would do, so clear it
+        currentSettings.commentOverride = null
+        saveSettings({ commentOverride: null })
+      }
+    }
+
+    // Apply comment visibility based on current state
+    const shouldHideComments = getShouldHideComments()
     updateCommentsVisibility(shouldHideComments)
   }
 
   // Always send status update to popup to ensure it's current
   sendStatusUpdate()
+}
+
+function getShouldHideComments() {
+  if (currentSettings.commentOverride !== null) {
+    // Override takes precedence
+    return currentSettings.commentOverride
+  }
+
+  if (currentSettings.autoDetection) {
+    // Auto detection: hide in portrait, show in landscape
+    return currentSettings.lastScreenMode === "portrait"
+  } else {
+    // Manual mode
+    return currentSettings.hideComments
+  }
 }
 
 function updateCommentsVisibility(hide) {
@@ -132,11 +160,7 @@ function updateCommentsVisibility(hide) {
 }
 
 function shouldHideComments() {
-  if (currentSettings.autoDetection) {
-    return currentSettings.lastScreenMode === "portrait"
-  } else {
-    return currentSettings.hideComments
-  }
+  return getShouldHideComments()
 }
 
 // Scroll navigation functionality (preserved from original)
@@ -508,7 +532,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
     case "autoDetectionChanged":
       currentSettings.autoDetection = message.enabled
-      saveSettings({ autoDetection: message.enabled })
+      saveSettings({
+        autoDetection: message.enabled,
+        // Clear override when auto detection is toggled
+        commentOverride: null,
+      })
       setupScreenDetection()
 
       if (message.enabled) {
@@ -531,6 +559,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       sendResponse({ status: "Hide comments updated" })
+      break
+
+    case "commentOverrideChanged":
+      currentSettings.commentOverride = message.override
+      saveSettings({ commentOverride: message.override })
+
+      // Apply the override immediately
+      updateCommentsVisibility(getShouldHideComments())
+
+      sendResponse({ status: "Comment override updated" })
       break
 
     case "scrollNavigationChanged":

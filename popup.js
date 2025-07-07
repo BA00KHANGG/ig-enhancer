@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = {
   scrollNavigation: true,
   videoControls: false,
   lastScreenMode: "landscape",
+  commentOverride: null, // null = no override, true = force hide, false = force show
 }
 
 // DOM elements
@@ -58,6 +59,8 @@ function handleAutoDetectionChange() {
   const enabled = autoDetectionToggle.checked
 
   updateSetting("autoDetection", enabled)
+  // Clear any override when toggling auto detection
+  updateSetting("commentOverride", null)
   updateHideCommentsState()
 
   // Send message to content script
@@ -155,6 +158,32 @@ function updateStatus() {
   })
 }
 
+function getEffectiveCommentState(settings) {
+  // Determine what the comments are actually doing
+  if (settings.commentOverride !== null) {
+    // Override is active
+    return {
+      hidden: settings.commentOverride,
+      reason: settings.commentOverride ? "override-hide" : "override-show",
+    }
+  }
+
+  if (settings.autoDetection) {
+    // Auto detection without override
+    const hidden = settings.lastScreenMode === "portrait"
+    return {
+      hidden: hidden,
+      reason: hidden ? "auto-hide" : "auto-show",
+    }
+  } else {
+    // Manual mode
+    return {
+      hidden: settings.hideComments,
+      reason: settings.hideComments ? "manual-hide" : "manual-show",
+    }
+  }
+}
+
 function updateStatusDisplay(settings) {
   // Update screen mode
   const screenMode = settings.lastScreenMode || "landscape"
@@ -162,18 +191,43 @@ function updateStatusDisplay(settings) {
     screenMode.charAt(0).toUpperCase() + screenMode.slice(1)
   screenModeStatus.className = "status-value"
 
-  // Update comments status
-  let commentsState
-  if (settings.autoDetection) {
-    commentsState = screenMode === "portrait" ? "Auto Hidden" : "Auto Shown"
-    commentsStatus.className = "status-value active"
-  } else {
-    commentsState = settings.hideComments ? "Hidden" : "Shown"
-    commentsStatus.className = `status-value ${
-      settings.hideComments ? "inactive" : "active"
-    }`
+  // Update comments status with enhanced logic
+  const commentState = getEffectiveCommentState(settings)
+  let commentsText
+  let commentsClass
+
+  switch (commentState.reason) {
+    case "override-hide":
+      commentsText = "Override Hidden"
+      commentsClass = "status-value inactive"
+      break
+    case "override-show":
+      commentsText = "Override Shown"
+      commentsClass = "status-value active"
+      break
+    case "auto-hide":
+      commentsText = "Auto Hidden"
+      commentsClass = "status-value inactive"
+      break
+    case "auto-show":
+      commentsText = "Auto Shown"
+      commentsClass = "status-value active"
+      break
+    case "manual-hide":
+      commentsText = "Hidden"
+      commentsClass = "status-value inactive"
+      break
+    case "manual-show":
+      commentsText = "Shown"
+      commentsClass = "status-value active"
+      break
+    default:
+      commentsText = "Unknown"
+      commentsClass = "status-value"
   }
-  commentsStatus.textContent = commentsState
+
+  commentsStatus.textContent = commentsText
+  commentsStatus.className = commentsClass
 
   // Update video controls status
   const videoControlsState = settings.videoControls ? "Enabled" : "Disabled"
