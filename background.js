@@ -6,6 +6,7 @@ chrome.runtime.onInstalled.addListener(() => {
     hideComments: true,
     scrollNavigation: true,
     videoControls: false,
+    tikTokSidebar: true,
     lastScreenMode: "landscape",
     commentOverride: null, // null = no override, true = force hide, false = force show
   }
@@ -40,6 +41,9 @@ chrome.commands.onCommand.addListener(command => {
         break
       case "toggle-video-controls":
         toggleVideoControls(activeTab)
+        break
+      case "toggle-tiktok-sidebar":
+        toggleTikTokSidebar(activeTab)
         break
     }
   })
@@ -135,6 +139,19 @@ function toggleVideoControls(tab) {
   })
 }
 
+function toggleTikTokSidebar(tab) {
+  chrome.storage.local.get({ tikTokSidebar: true }, data => {
+    const newState = !data.tikTokSidebar
+    chrome.storage.local.set({ tikTokSidebar: newState }, () => {
+      sendMessageWithRetry(tab.id, {
+        type: "tikTokSidebarChanged",
+        enabled: newState,
+      })
+      updateIconForTab(tab)
+    })
+  })
+}
+
 // Handle action clicks (when popup is not available or for quick toggle)
 chrome.action.onClicked.addListener(tab => {
   // This will only trigger if popup is not set or fails to load
@@ -204,6 +221,7 @@ function updateIconForTab(tab) {
       autoDetection: false,
       scrollNavigation: true,
       videoControls: false,
+      tikTokSidebar: true,
       lastScreenMode: "landscape",
       commentOverride: null,
     },
@@ -216,6 +234,7 @@ function updateIconForTab(tab) {
           data.autoDetection ||
           data.scrollNavigation ||
           data.videoControls ||
+          data.tikTokSidebar ||
           (!data.autoDetection && data.hideComments) ||
           data.commentOverride !== null
 
@@ -253,6 +272,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       changes.autoDetection ||
       changes.scrollNavigation ||
       changes.videoControls ||
+      changes.tikTokSidebar ||
       changes.lastScreenMode ||
       changes.commentOverride
     ) {

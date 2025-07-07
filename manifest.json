@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "IG Enhancer",
-  "version": "1.1",
-  "description": "Hide comments, scroll navigation, video controls, and auto screen detection for Instagram with override support.",
+  "version": "1.2",
+  "description": "Hide comments, scroll navigation, video controls, TikTok-style sidebar, and auto screen detection for Instagram with override support.",
   "permissions": ["activeTab", "storage", "tabs"],
   "action": {
     "default_popup": "popup.html",
@@ -51,12 +51,12 @@
       },
       "description": "Toggle Scroll Navigation"
     },
-    "toggle-video-controls": {
+    "toggle-tiktok-sidebar": {
       "suggested_key": {
-        "default": "Alt+V",
-        "mac": "Alt+V"
+        "default": "Alt+T",
+        "mac": "Alt+T"
       },
-      "description": "Toggle Video Controls"
+      "description": "Toggle TikTok-Style Sidebar"
     }
   }
 }

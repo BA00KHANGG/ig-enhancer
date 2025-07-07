@@ -4,6 +4,7 @@ const DEFAULT_SETTINGS = {
   hideComments: true,
   scrollNavigation: true,
   videoControls: false,
+  tikTokSidebar: true,
   lastScreenMode: "landscape",
   commentOverride: null, // null = no override, true = force hide, false = force show
 }
@@ -12,8 +13,9 @@ const DEFAULT_SETTINGS = {
 let autoDetectionToggle,
   hideCommentsToggle,
   scrollNavigationToggle,
-  videoControlsToggle
-let screenModeStatus, commentsStatus, videoControlsStatus
+  videoControlsToggle,
+  tikTokSidebarToggle
+let screenModeStatus, commentsStatus, videoControlsStatus, tikTokSidebarStatus
 
 // Initialize popup
 document.addEventListener("DOMContentLoaded", () => {
@@ -28,9 +30,11 @@ function initializeElements() {
   hideCommentsToggle = document.getElementById("hideComments")
   scrollNavigationToggle = document.getElementById("scrollNavigation")
   videoControlsToggle = document.getElementById("videoControls")
+  tikTokSidebarToggle = document.getElementById("tikTokSidebar")
   screenModeStatus = document.getElementById("screenMode")
   commentsStatus = document.getElementById("commentsStatus")
   videoControlsStatus = document.getElementById("videoControlsStatus")
+  tikTokSidebarStatus = document.getElementById("tikTokSidebarStatus")
 }
 
 function loadSettings() {
@@ -39,6 +43,7 @@ function loadSettings() {
     hideCommentsToggle.checked = settings.hideComments
     scrollNavigationToggle.checked = settings.scrollNavigation
     videoControlsToggle.checked = settings.videoControls
+    tikTokSidebarToggle.checked = settings.tikTokSidebar
 
     updateHideCommentsState()
     updateStatusDisplay(settings)
@@ -53,6 +58,7 @@ function setupEventListeners() {
     handleScrollNavigationChange
   )
   videoControlsToggle.addEventListener("change", handleVideoControlsChange)
+  tikTokSidebarToggle.addEventListener("change", handleTikTokSidebarChange)
 }
 
 function handleAutoDetectionChange() {
@@ -108,6 +114,20 @@ function handleVideoControlsChange() {
   // Send message to content script
   sendMessageToActiveTab({
     type: "videoControlsChanged",
+    enabled: enabled,
+  })
+
+  updateStatus()
+}
+
+function handleTikTokSidebarChange() {
+  const enabled = tikTokSidebarToggle.checked
+
+  updateSetting("tikTokSidebar", enabled)
+
+  // Send message to content script
+  sendMessageToActiveTab({
+    type: "tikTokSidebarChanged",
     enabled: enabled,
   })
 
@@ -229,6 +249,13 @@ function updateStatusDisplay(settings) {
   commentsStatus.textContent = commentsText
   commentsStatus.className = commentsClass
 
+  // Update TikTok sidebar status
+  const tikTokSidebarState = settings.tikTokSidebar ? "Enabled" : "Disabled"
+  tikTokSidebarStatus.textContent = tikTokSidebarState
+  tikTokSidebarStatus.className = `status-value ${
+    settings.tikTokSidebar ? "active" : "inactive"
+  }`
+
   // Update video controls status
   const videoControlsState = settings.videoControls ? "Enabled" : "Disabled"
   videoControlsStatus.textContent = videoControlsState
@@ -264,6 +291,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       }
       if (changes.videoControls) {
         videoControlsToggle.checked = settings.videoControls
+      }
+      if (changes.tikTokSidebar) {
+        tikTokSidebarToggle.checked = settings.tikTokSidebar
       }
     })
   }

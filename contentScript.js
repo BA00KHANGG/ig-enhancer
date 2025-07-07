@@ -4,6 +4,7 @@ let currentSettings = {
   hideComments: true,
   scrollNavigation: true,
   videoControls: false,
+  tikTokSidebar: true, // New setting for TikTok-style sidebar
   lastScreenMode: "landscape",
   commentOverride: null, // null = no override, true = force hide, false = force show
 }
@@ -19,6 +20,10 @@ const RESIZE_DELAY = 300
 const knownVideoElements = new Set()
 let videoObserver = null
 
+// TikTok sidebar specific variables
+let sidebarElement = null
+let sidebarObserver = null
+
 // Initialize extension
 initializeExtension()
 
@@ -26,9 +31,19 @@ function initializeExtension() {
   loadSettings(() => {
     handleUrlChange()
     setupScreenDetection()
+
+    // Only initialize features if we're in a post modal
     if (isInPostModal()) {
       addScrollListeners()
+
+      if (currentSettings.tikTokSidebar) {
+        // Add extra delay for initial load
+        setTimeout(() => {
+          initializeTikTokSidebar()
+        }, 1500)
+      }
     }
+
     startObserving()
 
     // Initialize video controls if enabled
@@ -44,6 +59,7 @@ function loadSettings(callback) {
     hideComments: true,
     scrollNavigation: true,
     videoControls: false,
+    tikTokSidebar: true,
     lastScreenMode: "landscape",
     commentOverride: null,
   }
@@ -57,6 +73,569 @@ function loadSettings(callback) {
 function saveSettings(updates) {
   currentSettings = { ...currentSettings, ...updates }
   chrome.storage.local.set(updates)
+}
+
+// TikTok-Style Sidebar Functionality
+function initializeTikTokSidebar() {
+  if (!currentSettings.tikTokSidebar || !isInPostModal()) return
+
+  // Remove existing sidebar if present
+  removeTikTokSidebar()
+
+  // Create and inject the sidebar
+  createTikTokSidebar()
+
+  // Setup observer to update sidebar content
+  setupSidebarObserver()
+}
+
+function createTikTokSidebar() {
+  // Create sidebar container
+  sidebarElement = document.createElement("div")
+  sidebarElement.id = "ig-enhancer-tiktok-sidebar"
+  sidebarElement.innerHTML = `
+    <div class="sidebar-item user-profile">
+      <div class="avatar-container">
+        <a href="" class="user-link">
+          <img class="user-avatar" src="" alt="User Avatar">
+        </a>
+      </div>
+    </div>
+    
+    <div class="sidebar-item like-section">
+      <button class="action-btn like-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M16.792 3.904A4.989 4.989 0 0 1 21.5 9.122c0 3.072-2.652 4.959-5.197 7.222-2.512 2.243-3.865 3.469-4.303 3.752-.477-.309-2.143-1.823-4.303-3.752C5.141 14.072 2.5 12.167 2.5 9.122a4.989 4.989 0 0 1 4.708-5.218 4.21 4.21 0 0 1 3.675 1.941c.84 1.175.98 1.763 1.12 1.763s.278-.588 1.11-1.766a4.17 4.17 0 0 1 3.679-1.938m0-2a6.04 6.04 0 0 0-4.797 2.127 6.052 6.052 0 0 0-4.787-2.127A6.985 6.985 0 0 0 .5 9.122c0 3.61 2.55 5.827 5.015 7.97.283.246.569.494.853.747l1.027.918a44.998 44.998 0 0 0 3.518 3.018 2 2 0 0 0 2.174 0 45.263 45.263 0 0 0 3.626-3.115l.922-.824c.293-.26.59-.519.885-.774 2.334-2.025 4.98-4.32 4.98-7.94a6.985 6.985 0 0 0-6.708-7.218Z" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </button>
+      <div class="count like-count">0</div>
+    </div>
+    
+    <div class="sidebar-item comment-section">
+      <button class="action-btn comment-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M20.656 17.008a9.993 9.993 0 1 0-3.59 3.615L22 22Z" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </button>
+      <div class="count comment-count">0</div>
+    </div>
+    
+    <div class="sidebar-item share-section">
+      <button class="action-btn share-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <line x1="22" x2="9.218" y1="3" y2="10.083" stroke="currentColor" stroke-width="1.5"/>
+          <polygon points="11.698 20.334 22 3.001 2 3.001 9.218 10.084 11.698 20.334" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </button>
+    </div>
+  `
+
+  // Add CSS styles
+  addTikTokSidebarCSS()
+
+  // Add event listeners
+  setupSidebarEventListeners()
+
+  // Extract and populate data
+  populateSidebarData()
+
+  // Find the navigation container and inject sidebar
+  const navContainer = findNavigationContainer()
+  if (navContainer) {
+    navContainer.appendChild(sidebarElement)
+  } else {
+    // Fallback to body if navigation container not found
+    document.body.appendChild(sidebarElement)
+  }
+}
+
+function findNavigationContainer() {
+  // Try to find navigation container by looking for navigation buttons
+  const navButtons = document.querySelectorAll('button[type="button"]')
+
+  for (const button of navButtons) {
+    const svg = button.querySelector("svg")
+    if (svg) {
+      const ariaLabel = svg.getAttribute("aria-label")
+      const title = svg.querySelector("title")?.textContent
+
+      if (ariaLabel === "Next" || title === "Next") {
+        // Found the next button, return body for fixed positioning
+        return document.body
+      }
+    }
+  }
+
+  // Fallback to body
+  return document.body
+}
+
+function formatCount(countStr) {
+  const count = parseInt(countStr.replace(/[^\d]/g, "")) || 0
+
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1).replace(".0", "") + "M"
+  } else if (count >= 1000) {
+    return (count / 1000).toFixed(1).replace(".0", "") + "K"
+  }
+
+  return count.toString()
+}
+
+function addTikTokSidebarCSS() {
+  const styleId = "ig-enhancer-tiktok-sidebar-styles"
+
+  if (document.getElementById(styleId)) return
+
+  const style = document.createElement("style")
+  style.id = styleId
+  style.textContent = `
+    #ig-enhancer-tiktok-sidebar {
+      position: fixed;
+      right: 5px;
+      top: 60%;
+      transform: translateY(-50%);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.05);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      padding: 8px 5px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+      width: 44px;
+    }
+
+    /* Position adjustment based on screen orientation */
+    @media (orientation: portrait) {
+      #ig-enhancer-tiktok-sidebar {
+        top: 62%;
+      }
+    }
+
+    @media (orientation: landscape) {
+      #ig-enhancer-tiktok-sidebar {
+        top: 70%;
+      }
+    }
+
+    #ig-enhancer-tiktok-sidebar:hover {
+      background: rgba(0, 0, 0, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .user-profile {
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .user-profile:hover {
+      transform: scale(1.1);
+    }
+
+    .avatar-container {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      transition: border-color 0.2s ease;
+    }
+
+    .user-profile:hover .avatar-container {
+      border-color: rgba(255, 255, 255, 0.8);
+    }
+
+    .user-link {
+      display: block;
+      width: 100%;
+      height: 100%;
+      text-decoration: none;
+    }
+
+    .user-avatar {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .action-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(5px);
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.1);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .action-btn:active {
+      transform: scale(0.95);
+    }
+
+    .like-btn.liked {
+      background: rgba(237, 73, 86, 0.8);
+      color: #ed4956;
+    }
+
+    .like-btn.liked:hover {
+      background: rgba(237, 73, 86, 0.9);
+    }
+
+    .like-btn.liked svg path {
+      fill: #ed4956;
+      stroke: #ed4956;
+    }
+
+    .count {
+      font-size: 10px;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+      font-weight: 600;
+      text-align: center;
+      min-width: 36px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      padding: 2px 4px;
+      line-height: 1.2;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      #ig-enhancer-tiktok-sidebar {
+        right: 12px;
+        gap: 10px;
+        padding: 6px;
+        width: 40px;
+      }
+      
+      .avatar-container {
+        width: 32px;
+        height: 32px;
+      }
+      
+      .action-btn {
+        width: 32px;
+        height: 32px;
+      }
+      
+      .action-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+      
+      .count {
+        font-size: 9px;
+        min-width: 32px;
+      }
+    }
+
+    /* Hide when comments are shown to avoid overlap */
+    .ig-enhancer-sidebar-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%) translateX(20px);
+    }
+  `
+
+  document.head.appendChild(style)
+}
+
+function setupSidebarEventListeners() {
+  if (!sidebarElement) return
+
+  // User profile click - just handle left clicks to prevent default
+  const userLink = sidebarElement.querySelector(".user-link")
+  userLink.addEventListener("click", handleUserProfileClick)
+
+  // Like button click
+  const likeBtn = sidebarElement.querySelector(".like-btn")
+  likeBtn.addEventListener("click", handleLikeClick)
+
+  // Comment button click
+  const commentBtn = sidebarElement.querySelector(".comment-btn")
+  commentBtn.addEventListener("click", handleCommentToggle)
+
+  // Share button click
+  const shareBtn = sidebarElement.querySelector(".share-btn")
+  shareBtn.addEventListener("click", handleShareClick)
+}
+
+function populateSidebarData() {
+  if (!sidebarElement) return
+
+  try {
+    // Extract username and avatar from the header
+    // Is there an open post / reel dialog?
+    const dialog = document.querySelector('div[role="dialog"]')
+
+    // The relevant header:
+    const headerScope = dialog
+      ? dialog.querySelector("header") // <header> inside overlay
+      : document.querySelector("main header") // first header on a profile page
+
+    // The author avatar inside that header
+    const userAvatar = headerScope?.querySelector(
+      'img[alt$="\'s profile picture"]'
+    )
+
+    if (userAvatar) {
+      const avatarSrc = userAvatar.src
+      const username = userAvatar.alt.replace(/'s profile picture$/, "")
+
+      sidebarElement.querySelector(".user-avatar").src = avatarSrc
+      sidebarElement.querySelector(".user-link").href = `/${username}/`
+      sidebarElement.dataset.username = username
+    }
+
+    // Extract like count - try multiple selectors
+    const likeSelectors = [
+      'a[href*="/liked_by/"] span',
+      "section a span",
+      "section span",
+    ]
+
+    let likeCount = "0"
+    for (const selector of likeSelectors) {
+      const elements = document.querySelectorAll(selector)
+      for (const element of elements) {
+        const text = element.textContent.trim()
+        if (text.includes("like")) {
+          likeCount = text.split(" ")[0].replace(/[^\d,]/g, "")
+          break
+        }
+      }
+      if (likeCount !== "0") break
+    }
+
+    sidebarElement.querySelector(".like-count").textContent =
+      formatCount(likeCount)
+
+    // Count comments more reliably
+    const commentElements = document.querySelectorAll('ul li[role="button"]')
+    let commentCount = 0
+    commentElements.forEach(el => {
+      if (el.querySelector('img[alt*="profile picture"]')) {
+        commentCount++
+      }
+    })
+
+    sidebarElement.querySelector(".comment-count").textContent = formatCount(
+      commentCount.toString()
+    )
+
+    // Check if post is already liked by looking for filled heart
+    const likeButtonSection = document.querySelector("section")
+    if (likeButtonSection) {
+      const filledHeart = likeButtonSection.querySelector(
+        'svg[fill="rgb(237, 73, 86)"]'
+      )
+      const likeBtn = sidebarElement.querySelector(".like-btn")
+
+      if (filledHeart) {
+        likeBtn.classList.add("liked")
+      } else {
+        likeBtn.classList.remove("liked")
+      }
+    }
+  } catch (error) {
+    console.log("IG Enhancer: Error populating sidebar data:", error)
+  }
+}
+
+function handleUserProfileClick(event) {
+  // Only prevent default for regular left clicks (no modifiers)
+  if (
+    event.button === 0 &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
+  ) {
+    event.preventDefault()
+    event.stopPropagation()
+    window.location.href = event.target.closest(".user-link").href
+  }
+  // Let middle-click and ctrl+click open in new tab, let right-click show context menu
+}
+
+function handleLikeClick(event) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  try {
+    // Find the like button in the section
+    const section = document.querySelector("section")
+    if (section) {
+      const likeButton = section.querySelector("button")
+      if (likeButton) {
+        likeButton.click()
+
+        // Toggle visual state immediately for responsiveness
+        const likeBtn = sidebarElement.querySelector(".like-btn")
+        likeBtn.classList.toggle("liked")
+
+        // Update count after a delay
+        setTimeout(() => {
+          populateSidebarData()
+        }, 500)
+      }
+    }
+  } catch (error) {
+    console.log("IG Enhancer: Error handling like click:", error)
+  }
+}
+
+function handleLikeClick(event) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  try {
+    // Find the like button in the section
+    const section = document.querySelector("section")
+    if (section) {
+      const likeButton = section.querySelector("button")
+      if (likeButton) {
+        likeButton.click()
+
+        // Toggle visual state immediately for responsiveness
+        const likeBtn = sidebarElement.querySelector(".like-btn")
+        likeBtn.classList.toggle("liked")
+
+        // Update count after a delay
+        setTimeout(() => {
+          populateSidebarData()
+        }, 500)
+      }
+    }
+  } catch (error) {
+    console.log("IG Enhancer: Error handling like click:", error)
+  }
+}
+
+function handleCommentToggle(event) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  // Toggle comments visibility using existing functionality
+  const shouldHide = !getShouldHideComments()
+
+  // Update override to toggle comments
+  currentSettings.commentOverride = shouldHide
+  saveSettings({ commentOverride: shouldHide })
+
+  // Apply the change
+  updateCommentsVisibility(shouldHide)
+
+  // Update sidebar visibility
+  updateSidebarVisibility()
+}
+
+function handleShareClick(event) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  try {
+    // Find the share button in the section
+    const section = document.querySelector("section")
+    if (section) {
+      const buttons = section.querySelectorAll("button")
+      // Share button is typically the third button (like, comment, share)
+      const shareButton = buttons[2]
+      if (shareButton) {
+        shareButton.click()
+      }
+    }
+  } catch (error) {
+    console.log("IG Enhancer: Error handling share click:", error)
+  }
+}
+
+function updateSidebarVisibility() {
+  if (!sidebarElement) return
+
+  const commentsVisible = !getShouldHideComments()
+
+  if (commentsVisible) {
+    sidebarElement.classList.add("ig-enhancer-sidebar-hidden")
+  } else {
+    sidebarElement.classList.remove("ig-enhancer-sidebar-hidden")
+  }
+}
+
+function setupSidebarObserver() {
+  // Observer to update sidebar when content changes
+  if (sidebarObserver) return
+
+  sidebarObserver = new MutationObserver(mutations => {
+    let shouldUpdate = false
+
+    mutations.forEach(mutation => {
+      // Check if like counts or comments changed
+      if (
+        mutation.target.matches &&
+        (mutation.target.matches("section") ||
+          mutation.target.closest("section") ||
+          mutation.target.matches("ul._a9ym") ||
+          mutation.target.closest("ul._a9ym"))
+      ) {
+        shouldUpdate = true
+      }
+    })
+
+    if (shouldUpdate && sidebarElement) {
+      // Debounce updates
+      clearTimeout(window.sidebarUpdateTimeout)
+      window.sidebarUpdateTimeout = setTimeout(() => {
+        populateSidebarData()
+      }, 300)
+    }
+  })
+
+  sidebarObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["aria-label", "fill"],
+  })
+}
+
+function removeTikTokSidebar() {
+  if (sidebarElement) {
+    sidebarElement.remove()
+    sidebarElement = null
+  }
+
+  if (sidebarObserver) {
+    sidebarObserver.disconnect()
+    sidebarObserver = null
+  }
+
+  // Remove styles
+  const styles = document.getElementById("ig-enhancer-tiktok-sidebar-styles")
+  if (styles) {
+    styles.remove()
+  }
 }
 
 // Screen detection functionality
@@ -118,6 +697,11 @@ function detectScreenMode() {
     updateCommentsVisibility(shouldHideComments)
   }
 
+  // Update sidebar visibility
+  if (currentSettings.tikTokSidebar) {
+    updateSidebarVisibility()
+  }
+
   // Always send status update to popup to ensure it's current
   sendStatusUpdate()
 }
@@ -156,6 +740,11 @@ function updateCommentsVisibility(hide) {
     if (styleElement) {
       styleElement.remove()
     }
+  }
+
+  // Update sidebar visibility when comments visibility changes
+  if (currentSettings.tikTokSidebar) {
+    updateSidebarVisibility()
   }
 }
 
@@ -264,7 +853,7 @@ function removeScrollListeners() {
   document.removeEventListener("wheel", handleWheelEvent, { capture: true })
 }
 
-// Video Controls Functionality
+// Video Controls Functionality (preserved from original)
 function initializeVideoControls() {
   if (!currentSettings.videoControls) return
 
@@ -461,8 +1050,19 @@ function disconnectVideoObserver() {
 // URL and modal handling
 function handleUrlChange() {
   const urlPath = window.location.pathname
+
   if (urlPath.includes("/p/") || urlPath.includes("/reel/")) {
     updateCommentsVisibility(shouldHideComments())
+
+    // Initialize TikTok sidebar for new posts
+    if (currentSettings.tikTokSidebar) {
+      setTimeout(() => {
+        initializeTikTokSidebar()
+      }, 1000) // Increased delay to ensure content is fully loaded
+    }
+  } else {
+    // Remove sidebar when not in post modal
+    removeTikTokSidebar()
   }
 
   // Update screen detection
@@ -486,8 +1086,15 @@ const observer = new MutationObserver(mutations => {
         node.matches('article[role="presentation"]')
       ) {
         handleUrlChange()
+
         if (currentSettings.scrollNavigation) {
           setTimeout(addScrollListeners, 100)
+        }
+
+        if (currentSettings.tikTokSidebar) {
+          setTimeout(() => {
+            initializeTikTokSidebar()
+          }, 1000)
         }
       }
     })
@@ -499,6 +1106,7 @@ const observer = new MutationObserver(mutations => {
         node.matches('article[role="presentation"]')
       ) {
         removeScrollListeners()
+        removeTikTokSidebar()
       }
     })
   })
@@ -599,6 +1207,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: "Video controls updated" })
       break
 
+    case "tikTokSidebarChanged":
+      currentSettings.tikTokSidebar = message.enabled
+      saveSettings({ tikTokSidebar: message.enabled })
+
+      if (message.enabled && isInPostModal()) {
+        initializeTikTokSidebar()
+      } else {
+        removeTikTokSidebar()
+      }
+
+      sendResponse({ status: "TikTok sidebar updated" })
+      break
+
     case "getStatus":
       // Force a fresh screen mode detection when popup requests status
       if (currentSettings.autoDetection) {
@@ -643,6 +1264,7 @@ function sendStatusUpdate() {
 // Cleanup
 window.addEventListener("beforeunload", () => {
   removeScrollListeners()
+  removeTikTokSidebar()
   window.removeEventListener("resize", handleResize)
   window.removeEventListener("orientationchange", handleResize)
   window.removeEventListener("focus", handleResize)

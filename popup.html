@@ -83,6 +83,31 @@
         margin-top: 2px;
       }
 
+      .setting-note {
+        font-size: 11px;
+        color: #8e8e8e;
+        margin-top: 4px;
+        font-style: italic;
+      }
+
+      .new-feature {
+        position: relative;
+      }
+
+      .new-feature::after {
+        content: "NEW";
+        position: absolute;
+        top: -2px;
+        right: 60px;
+        background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+        color: white;
+        font-size: 8px;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 8px;
+        letter-spacing: 0.5px;
+      }
+
       .toggle-container {
         position: relative;
       }
@@ -205,20 +230,13 @@
       .toggle-label:hover:not(.toggle-input:disabled + .toggle-label) {
         box-shadow: 0 0 0 8px rgba(0, 149, 246, 0.1);
       }
-
-      .setting-note {
-        font-size: 11px;
-        color: #8e8e8e;
-        margin-top: 4px;
-        font-style: italic;
-      }
     </style>
   </head>
   <body>
     <div class="popup-container">
       <div class="header">
         <h2>IG Enhancer</h2>
-        <div class="version">v1.1</div>
+        <div class="version">v1.2</div>
       </div>
 
       <div class="settings-section">
@@ -250,6 +268,25 @@
           <div class="toggle-container">
             <input type="checkbox" id="hideComments" class="toggle-input" />
             <label for="hideComments" class="toggle-label"></label>
+          </div>
+        </div>
+
+        <div class="setting-item new-feature">
+          <div class="setting-info">
+            <label for="tikTokSidebar">TikTok-Style Sidebar</label>
+            <span class="setting-description"
+              >Shows user profile, like & comment buttons on the right
+              side</span
+            >
+            <div class="setting-shortcut">Alt+T</div>
+            <div class="setting-note">
+              Perfect for when comments are hidden - easy access to user
+              profile!
+            </div>
+          </div>
+          <div class="toggle-container">
+            <input type="checkbox" id="tikTokSidebar" class="toggle-input" />
+            <label for="tikTokSidebar" class="toggle-label"></label>
           </div>
         </div>
 
@@ -290,6 +327,10 @@
         <div class="status-item">
           <span class="status-label">Comments:</span>
           <span id="commentsStatus" class="status-value">-</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">TikTok Sidebar:</span>
+          <span id="tikTokSidebarStatus" class="status-value">-</span>
         </div>
         <div class="status-item">
           <span class="status-label">Video Controls:</span>
