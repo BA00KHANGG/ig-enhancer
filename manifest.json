@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "IG Enhancer",
-  "version": "1.2",
+  "version": "1.0",
   "description": "Hide comments, scroll navigation, video controls, TikTok-style sidebar, and auto screen detection for Instagram with override support.",
   "permissions": ["activeTab", "storage", "tabs"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/icon-16.png",
-      "48": "icons/icon-48.png",
+      "16": "icons/icon.png",
+      "48": "icons/icon.png",
       "128": "icons/icon.png"
     },
     "default_title": "IG Enhancer Settings"

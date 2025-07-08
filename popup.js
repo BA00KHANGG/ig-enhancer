@@ -1,9 +1,9 @@
 // Default settings
 const DEFAULT_SETTINGS = {
-  autoDetection: false,
+  autoDetection: true,
   hideComments: true,
   scrollNavigation: true,
-  videoControls: false,
+  videoControls: true,
   tikTokSidebar: true,
   lastScreenMode: "landscape",
   commentOverride: null, // null = no override, true = force hide, false = force show

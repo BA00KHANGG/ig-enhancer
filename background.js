@@ -2,10 +2,10 @@
 chrome.runtime.onInstalled.addListener(() => {
   // Set default settings
   const defaultSettings = {
-    autoDetection: false,
+    autoDetection: true,
     hideComments: true,
     scrollNavigation: true,
-    videoControls: false,
+    videoControls: true,
     tikTokSidebar: true,
     lastScreenMode: "landscape",
     commentOverride: null, // null = no override, true = force hide, false = force show
@@ -50,7 +50,7 @@ chrome.commands.onCommand.addListener(command => {
 })
 
 function toggleAutoDetection(tab) {
-  chrome.storage.local.get({ autoDetection: false }, data => {
+  chrome.storage.local.get({ autoDetection: true }, data => {
     const newState = !data.autoDetection
     chrome.storage.local.set(
       {
@@ -73,7 +73,7 @@ function toggleHideCommentsWithOverride(tab) {
   chrome.storage.local.get(
     {
       hideComments: true,
-      autoDetection: false,
+      autoDetection: true,
       commentOverride: null,
       lastScreenMode: "landscape",
     },
@@ -127,7 +127,7 @@ function toggleScrollNavigation(tab) {
 }
 
 function toggleVideoControls(tab) {
-  chrome.storage.local.get({ videoControls: false }, data => {
+  chrome.storage.local.get({ videoControls: true }, data => {
     const newState = !data.videoControls
     chrome.storage.local.set({ videoControls: newState }, () => {
       sendMessageWithRetry(tab.id, {
@@ -159,7 +159,7 @@ chrome.action.onClicked.addListener(tab => {
   chrome.storage.local.get(
     {
       hideComments: true,
-      autoDetection: false,
+      autoDetection: true,
       commentOverride: null,
       lastScreenMode: "landscape",
     },
@@ -218,9 +218,9 @@ function updateIconForTab(tab) {
   chrome.storage.local.get(
     {
       hideComments: true,
-      autoDetection: false,
+      autoDetection: true,
       scrollNavigation: true,
-      videoControls: false,
+      videoControls: true,
       tikTokSidebar: true,
       lastScreenMode: "landscape",
       commentOverride: null,

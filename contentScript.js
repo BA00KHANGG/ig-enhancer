@@ -1,9 +1,9 @@
 // Settings and state management
 let currentSettings = {
-  autoDetection: false,
+  autoDetection: true,
   hideComments: true,
   scrollNavigation: true,
-  videoControls: false,
+  videoControls: true,
   tikTokSidebar: true, // New setting for TikTok-style sidebar
   lastScreenMode: "landscape",
   commentOverride: null, // null = no override, true = force hide, false = force show
@@ -55,10 +55,10 @@ function initializeExtension() {
 
 function loadSettings(callback) {
   const defaultSettings = {
-    autoDetection: false,
+    autoDetection: true,
     hideComments: true,
     scrollNavigation: true,
-    videoControls: false,
+    videoControls: true,
     tikTokSidebar: true,
     lastScreenMode: "landscape",
     commentOverride: null,
