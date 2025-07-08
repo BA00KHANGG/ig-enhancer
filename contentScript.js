@@ -405,44 +405,55 @@ function extractLikeCount() {
   let likeCount = "0"
 
   try {
-    // First, try to find the "liked_by" link which usually contains the count
+    // Method 1: Find the "liked_by" link (most reliable for "X others" format)
     const likedByLink = document.querySelector('a[href*="/liked_by/"]')
     if (likedByLink) {
+      // Get all text content and look for number + "others"
       const linkText = likedByLink.textContent.trim()
 
-      // Case 1: "X others" format (when someone you follow liked it)
-      if (linkText.includes(" others")) {
-        const match = linkText.match(/([\d,]+)\s+others/i)
-        if (match) {
-          likeCount = match[1].replace(/,/g, "")
-          console.log(
-            "IG Enhancer: Found like count in 'others' format:",
-            likeCount
-          )
-          return likeCount
-        }
+      // Match "X others" pattern (when someone you follow liked it)
+      const othersMatch = linkText.match(/([\d,]+)\s+others/i)
+      if (othersMatch) {
+        likeCount = othersMatch[1].replace(/,/g, "")
+        console.log(
+          "IG Enhancer: Found like count in 'others' format:",
+          likeCount
+        )
+        return likeCount
       }
 
-      // Case 2: Simple "X likes" or "X like" format
-      if (linkText.includes("like")) {
-        const match = linkText.match(/([\d,]+)\s+likes?/i)
-        if (match) {
-          likeCount = match[1].replace(/,/g, "")
-          console.log(
-            "IG Enhancer: Found like count in 'likes' format:",
-            likeCount
-          )
-          return likeCount
-        }
+      // Match simple "X likes" pattern
+      const likesMatch = linkText.match(/([\d,]+)\s+likes?/i)
+      if (likesMatch) {
+        likeCount = likesMatch[1].replace(/,/g, "")
+        console.log(
+          "IG Enhancer: Found like count in 'likes' format:",
+          likeCount
+        )
+        return likeCount
       }
     }
 
-    // Backup method: Look for spans with numbers followed by "others"
+    // Method 2: Look specifically for the number in span.html-span (for complex structure)
+    const numberSpan = document.querySelector(
+      'a[href*="/liked_by/"] span.html-span'
+    )
+    if (numberSpan) {
+      const numberText = numberSpan.textContent.trim()
+      const numberMatch = numberText.match(/^([\d,]+)$/)
+      if (numberMatch) {
+        likeCount = numberMatch[1].replace(/,/g, "")
+        console.log("IG Enhancer: Found like count in html-span:", likeCount)
+        return likeCount
+      }
+    }
+
+    // Method 3: Backup - look for any span containing number + "others"
     const spans = document.querySelectorAll("span")
     for (const span of spans) {
       const text = span.textContent.trim()
 
-      // Look for number followed by "others"
+      // Look for "X others" pattern
       const othersMatch = text.match(/^([\d,]+)\s+others$/i)
       if (othersMatch) {
         likeCount = othersMatch[1].replace(/,/g, "")
@@ -465,16 +476,29 @@ function extractLikeCount() {
       }
     }
 
-    // Another backup: Look in the specific structure for "others" text
+    // Method 4: Look for the specific structure when someone you follow liked it
+    // Find elements containing "others" and extract the number before it
     const othersElements = document.querySelectorAll("*")
     for (const element of othersElements) {
-      if (element.textContent.trim().endsWith(" others")) {
-        const parentText = element.textContent.trim()
-        const match = parentText.match(/([\d,]+)\s+others/i)
-        if (match) {
-          likeCount = match[1].replace(/,/g, "")
+      const text = element.textContent
+      if (text && text.includes(" others")) {
+        // Look for "Liked by username and X others" pattern
+        const complexMatch = text.match(/and\s+([\d,]+)\s+others/i)
+        if (complexMatch) {
+          likeCount = complexMatch[1].replace(/,/g, "")
           console.log(
-            "IG Enhancer: Found like count in element 'others' format:",
+            "IG Enhancer: Found like count in complex 'and X others' format:",
+            likeCount
+          )
+          return likeCount
+        }
+
+        // Look for simple "X others" pattern
+        const simpleMatch = text.match(/([\d,]+)\s+others/i)
+        if (simpleMatch) {
+          likeCount = simpleMatch[1].replace(/,/g, "")
+          console.log(
+            "IG Enhancer: Found like count in 'others' format:",
             likeCount
           )
           return likeCount
@@ -606,38 +630,10 @@ function populateSidebarData() {
       const likeBtn = sidebarElement.querySelector(".like-btn")
 
       if (section && likeBtn) {
-        let isLiked = false
-
-        const unlikeSvg = section.querySelector('svg[aria-label="Unlike"]')
-        if (unlikeSvg) {
-          isLiked = true
-        }
-
-        if (!isLiked) {
-          const unlikeTitle = section.querySelector("svg title")
-          if (unlikeTitle && unlikeTitle.textContent === "Unlike") {
-            isLiked = true
-          }
-        }
-
-        if (!isLiked) {
-          const spans = section.querySelectorAll("span.x1rg5ohu")
-          for (const span of spans) {
-            const svg = span.querySelector(
-              'svg[aria-label="Unlike"], svg[aria-label="Like"]'
-            )
-            if (svg) {
-              const path = svg.querySelector("path")
-              if (path) {
-                const pathData = path.getAttribute("d")
-                if (pathData && pathData.includes("M34.6 3.1c-4.5 0")) {
-                  isLiked = true
-                  break
-                }
-              }
-            }
-          }
-        }
+        // Check for "Unlike" svg to determine if post is already liked
+        const isLiked =
+          section.querySelector('svg[aria-label="Unlike"][height="24"]') !==
+          null
 
         // Only update if state has actually changed
         const currentlyLiked = likeBtn.classList.contains("liked")
@@ -695,29 +691,23 @@ function handleLikeClick(event) {
 
     let likeButton = null
 
-    // Look for the first span that contains the post like button
-    const spans = section.querySelectorAll("span.x1rg5ohu")
+    // Look for like/unlike button using more stable selectors
+    const likeSvg = section.querySelector('svg[aria-label="Like"][height="24"]')
+    const unlikeSvg = section.querySelector(
+      'svg[aria-label="Unlike"][height="24"]'
+    )
 
-    for (let i = 0; i < spans.length; i++) {
-      const span = spans[i]
-      const svg = span.querySelector("svg")
+    const targetSvg = likeSvg || unlikeSvg
 
-      if (svg) {
-        const ariaLabel = svg.getAttribute("aria-label")
-        const title = svg.querySelector("title")
-        const path = svg.querySelector("path")
-
-        if ((ariaLabel === "Like" || ariaLabel === "Unlike") && title && path) {
-          const pathData = path.getAttribute("d")
-          if (
-            pathData &&
-            (pathData.includes("M16.792 3.904A4.989") ||
-              pathData.includes("M34.6 3.1c-4.5 0"))
-          ) {
-            likeButton = span.querySelector('div[role="button"]')
-            break
-          }
+    if (targetSvg) {
+      // Find the clickable parent element (div[role="button"])
+      let element = targetSvg.parentElement
+      while (element && element !== section) {
+        if (element.getAttribute("role") === "button") {
+          likeButton = element
+          break
         }
+        element = element.parentElement
       }
     }
 
@@ -735,19 +725,11 @@ function handleLikeClick(event) {
         const updatedSection = updatedPostModal?.querySelector("section")
 
         if (updatedSection) {
-          let isLiked = false
-
-          // Check for unlike aria-label or title
-          const unlikeSvg = updatedSection.querySelector(
-            'svg[aria-label="Unlike"]'
-          )
-          const unlikeTitle = updatedSection.querySelector("svg title")
-
-          if (unlikeSvg) {
-            isLiked = true
-          } else if (unlikeTitle && unlikeTitle.textContent === "Unlike") {
-            isLiked = true
-          }
+          // Check current state by aria-label
+          const isLiked =
+            updatedSection.querySelector(
+              'svg[aria-label="Unlike"][height="24"]'
+            ) !== null
 
           // Update sidebar like button appearance
           const sidebarLikeBtn = sidebarElement.querySelector(".like-btn")
