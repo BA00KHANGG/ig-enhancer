@@ -82,6 +82,9 @@ function initializeTikTokSidebar() {
   // Remove existing sidebar if present
   removeTikTokSidebar()
 
+  // Reset username tracking for fresh start
+  lastSetUsername = null
+
   // Create and inject the sidebar
   createTikTokSidebar()
 
@@ -97,7 +100,7 @@ function createTikTokSidebar() {
     <div class="sidebar-item user-profile">
       <div class="avatar-container">
         <a href="" class="user-link">
-          <img class="user-avatar" src="" alt="User Avatar">
+          <img class="user-avatar" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNkYmRiZGIiLz4KPGF0aCBkPSJNMjAgMTBjLTUuNTIzIDAtMTAgNC40NzctMTAgMTBzNC40NzcgMTAgMTAgMTAgMTAtNC40NzcgMTAtMTAtNC40NzctMTAtMTAtMTB6bTAgNmMxLjY1NyAwIDMgMS4zNDMgMyAzcy0xLjM0MyAzLTMgMy0zLTEuMzQzLTMtM3MxLjM0My0zIDMtM3ptMCA4YzIuNzYxIDAgNS0yLjIzOSA1LTV2LTFjLTEuNzA2IDEuMjI0LTMuNzg0IDItNiAycy00LjI5NC0uNzc2LTYtMnYxYzAgMi43NjEgMi4yMzkgNSA1IDV6IiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K" alt="User Avatar">
         </a>
       </div>
     </div>
@@ -396,6 +399,136 @@ function setupSidebarEventListeners() {
 // Add a flag to prevent infinite loops
 let isUpdatingSidebar = false
 let sidebarUpdateTimeout = null
+let lastSetUsername = null // Track the last username we set to avoid unnecessary updates
+
+function extractLikeCount() {
+  let likeCount = "0"
+
+  try {
+    // First, try to find the "liked_by" link which usually contains the count
+    const likedByLink = document.querySelector('a[href*="/liked_by/"]')
+    if (likedByLink) {
+      const linkText = likedByLink.textContent.trim()
+
+      // Case 1: "X others" format (when someone you follow liked it)
+      if (linkText.includes(" others")) {
+        const match = linkText.match(/([\d,]+)\s+others/i)
+        if (match) {
+          likeCount = match[1].replace(/,/g, "")
+          console.log(
+            "IG Enhancer: Found like count in 'others' format:",
+            likeCount
+          )
+          return likeCount
+        }
+      }
+
+      // Case 2: Simple "X likes" or "X like" format
+      if (linkText.includes("like")) {
+        const match = linkText.match(/([\d,]+)\s+likes?/i)
+        if (match) {
+          likeCount = match[1].replace(/,/g, "")
+          console.log(
+            "IG Enhancer: Found like count in 'likes' format:",
+            likeCount
+          )
+          return likeCount
+        }
+      }
+    }
+
+    // Backup method: Look for spans with numbers followed by "others"
+    const spans = document.querySelectorAll("span")
+    for (const span of spans) {
+      const text = span.textContent.trim()
+
+      // Look for number followed by "others"
+      const othersMatch = text.match(/^([\d,]+)\s+others$/i)
+      if (othersMatch) {
+        likeCount = othersMatch[1].replace(/,/g, "")
+        console.log(
+          "IG Enhancer: Found like count in span 'others' format:",
+          likeCount
+        )
+        return likeCount
+      }
+
+      // Look for "X likes" pattern
+      const likesMatch = text.match(/^([\d,]+)\s+likes?$/i)
+      if (likesMatch) {
+        likeCount = likesMatch[1].replace(/,/g, "")
+        console.log(
+          "IG Enhancer: Found like count in span 'likes' format:",
+          likeCount
+        )
+        return likeCount
+      }
+    }
+
+    // Another backup: Look in the specific structure for "others" text
+    const othersElements = document.querySelectorAll("*")
+    for (const element of othersElements) {
+      if (element.textContent.trim().endsWith(" others")) {
+        const parentText = element.textContent.trim()
+        const match = parentText.match(/([\d,]+)\s+others/i)
+        if (match) {
+          likeCount = match[1].replace(/,/g, "")
+          console.log(
+            "IG Enhancer: Found like count in element 'others' format:",
+            likeCount
+          )
+          return likeCount
+        }
+      }
+    }
+
+    console.log("IG Enhancer: No like count found, defaulting to 0")
+    return "0"
+  } catch (error) {
+    console.log("IG Enhancer: Error extracting like count:", error)
+    return "0"
+  }
+}
+
+function detectPageType() {
+  const urlPath = window.location.pathname
+
+  // User profile page: /username/ or /username/p/postid/
+  // Check if URL starts with /username/ (not /p/, /explore/, /reels/, etc.)
+  const profileMatch = urlPath.match(/^\/([^\/]+)\/?/)
+  if (profileMatch) {
+    const segment = profileMatch[1]
+    // Exclude known non-user paths
+    const nonUserPaths = [
+      "p",
+      "explore",
+      "reels",
+      "tv",
+      "stories",
+      "accounts",
+      "direct",
+    ]
+    if (!nonUserPaths.includes(segment)) {
+      return {
+        type: "profile",
+        username: segment,
+      }
+    }
+  }
+
+  // Explore page
+  if (urlPath.includes("/explore/")) {
+    return { type: "explore" }
+  }
+
+  // Individual post (not from profile)
+  if (urlPath.includes("/p/")) {
+    return { type: "post" }
+  }
+
+  // Home feed or other
+  return { type: "feed" }
+}
 
 function populateSidebarData() {
   if (!sidebarElement || isUpdatingSidebar) return
@@ -408,6 +541,9 @@ function populateSidebarData() {
   sidebarUpdateTimeout = setTimeout(() => {
     try {
       isUpdatingSidebar = true // Prevent recursive calls
+
+      // Detect what type of page we're on
+      const pageInfo = detectPageType()
 
       // Extract username and avatar from the header
       const dialog = document.querySelector('div[role="dialog"]')
@@ -423,55 +559,48 @@ function populateSidebarData() {
         const avatarSrc = userAvatar.src
         const username = userAvatar.alt.replace(/'s profile picture$/, "")
 
-        const avatarImg = sidebarElement.querySelector(".user-avatar")
-        const userLink = sidebarElement.querySelector(".user-link")
+        // Smart avatar updating logic
+        let shouldUpdateAvatar = false
 
-        if (avatarImg.src !== avatarSrc) {
-          avatarImg.src = avatarSrc
-        }
-        if (userLink.href !== `/${username}/`) {
-          userLink.href = `/${username}/`
-        }
-        if (sidebarElement.dataset.username !== username) {
-          sidebarElement.dataset.username = username
-        }
-      }
-
-      // Extract like count
-      const likeSelectors = [
-        'a[href*="/liked_by/"] span',
-        "section a span",
-        "section span",
-      ]
-
-      let likeCount = "0"
-      for (const selector of likeSelectors) {
-        const elements = document.querySelectorAll(selector)
-        for (const element of elements) {
-          const text = element.textContent.trim()
-          if (text.includes("like")) {
-            likeCount = text.split(" ")[0].replace(/[^\d,]/g, "")
-            break
+        if (pageInfo.type === "profile") {
+          // On profile pages, only update avatar if username actually changed or first time
+          if (!lastSetUsername || lastSetUsername !== username) {
+            shouldUpdateAvatar = true
+            console.log(
+              `IG Enhancer: Profile page - updating avatar for user: ${username}`
+            )
+          }
+          // Don't update avatar for same user on profile page
+        } else {
+          // On explore/feed pages, always update avatar as each post might be from different users
+          if (lastSetUsername !== username) {
+            shouldUpdateAvatar = true
+            console.log(
+              `IG Enhancer: ${pageInfo.type} page - updating avatar for user: ${username}`
+            )
           }
         }
-        if (likeCount !== "0") break
+
+        if (shouldUpdateAvatar) {
+          const avatarImg = sidebarElement.querySelector(".user-avatar")
+          const userLink = sidebarElement.querySelector(".user-link")
+
+          avatarImg.src = avatarSrc
+          userLink.href = `/${username}/`
+          sidebarElement.dataset.username = username
+          lastSetUsername = username
+        }
       }
 
+      // Always update like count (this should work on all page types)
+      const likeCount = extractLikeCount()
       const likeCountElement = sidebarElement.querySelector(".like-count")
       const formattedLikeCount = formatCount(likeCount)
       if (likeCountElement.textContent !== formattedLikeCount) {
         likeCountElement.textContent = formattedLikeCount
       }
 
-      // Count comments (using simple method for now)
-      // const commentCount = getCommentCount()
-      // const commentCountElement = sidebarElement.querySelector(".comment-count")
-      // const formattedCommentCount = formatCount(commentCount.toString())
-      // if (commentCountElement.textContent !== formattedCommentCount) {
-      //   commentCountElement.textContent = formattedCommentCount
-      // }
-
-      // Check if post is already liked
+      // Always check if post is already liked (this should work on all page types)
       const postModal = document.querySelector('article[role="presentation"]')
       const section = postModal?.querySelector("section")
       const likeBtn = sidebarElement.querySelector(".like-btn")
@@ -758,6 +887,9 @@ function removeTikTokSidebar() {
     sidebarObserver = null
   }
 
+  // Reset the username tracking when sidebar is removed
+  lastSetUsername = null
+
   // Remove styles
   const styles = document.getElementById("ig-enhancer-tiktok-sidebar-styles")
   if (styles) {
@@ -931,6 +1063,16 @@ function handleWheelEvent(event) {
     return
   }
 
+  // Check if the scroll event originated from within the comments section
+  if (isScrollingInCommentsArea(event.target)) {
+    return // Allow normal scrolling in comments, don't navigate posts
+  }
+
+  // Check if scrolling in a scrollable content area (like long captions)
+  if (isScrollingInScrollableContent(event.target)) {
+    return // Allow normal scrolling in scrollable content
+  }
+
   event.preventDefault()
   event.stopPropagation()
 
@@ -951,6 +1093,102 @@ function handleWheelEvent(event) {
   setTimeout(() => {
     isScrolling = false
   }, SCROLL_DELAY)
+}
+
+function isScrollingInCommentsArea(target) {
+  // Find the closest article container
+  let element = target
+  let article = null
+
+  while (element && element !== document.body) {
+    if (
+      element.tagName === "ARTICLE" &&
+      element.getAttribute("role") === "presentation"
+    ) {
+      article = element
+      break
+    }
+    element = element.parentElement
+  }
+
+  if (!article) {
+    return false // Not within a post modal
+  }
+
+  // Get the main container div (first child of article)
+  const mainContainer = article.querySelector("div")
+  if (!mainContainer) {
+    return false
+  }
+
+  // Get all direct child divs of the main container
+  const childDivs = Array.from(mainContainer.children).filter(
+    child => child.tagName === "DIV"
+  )
+
+  if (childDivs.length < 2) {
+    return false // Expected structure not found
+  }
+
+  // First div should contain media (video/photo), second div should contain comments/interactions
+  const mediaContainer = childDivs[0]
+  const commentsContainer = childDivs[1]
+
+  // Check if the scroll target is within the comments container
+  if (commentsContainer && commentsContainer.contains(target)) {
+    return true
+  }
+
+  // Additional check: look for media elements in first container to confirm structure
+  const hasMedia =
+    mediaContainer &&
+    (mediaContainer.querySelector("video") ||
+      mediaContainer.querySelector("img") ||
+      mediaContainer.querySelector("canvas"))
+
+  // If target is in media container, allow post navigation
+  if (hasMedia && mediaContainer && mediaContainer.contains(target)) {
+    return false
+  }
+
+  // For safety, if we can't determine the structure clearly, assume it's comments area
+  return true
+}
+
+function isScrollingInScrollableContent(target) {
+  // Check if scrolling within any legitimately scrollable content area
+  let element = target
+  while (element && element !== document.body) {
+    // Skip if this is the main document scroll
+    if (element === document.documentElement || element === document.body) {
+      element = element.parentElement
+      continue
+    }
+
+    // Check if element has scrollable overflow and actual scrollable content
+    if (element.scrollHeight > element.clientHeight) {
+      const computedStyle = window.getComputedStyle(element)
+      const overflowY = computedStyle.overflowY
+      const overflow = computedStyle.overflow
+
+      if (
+        overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflow === "auto" ||
+        overflow === "scroll" ||
+        (overflowY === "hidden" && element.scrollTop > 0)
+      ) {
+        // Additional check: make sure this isn't the main post container
+        // by checking if it's within an article but not the article itself
+        const parentArticle = element.closest('article[role="presentation"]')
+        if (parentArticle && element !== parentArticle) {
+          return true
+        }
+      }
+    }
+    element = element.parentElement
+  }
+  return false
 }
 
 function isInPostModal() {
