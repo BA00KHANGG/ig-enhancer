@@ -154,8 +154,6 @@ function toggleTikTokSidebar(tab) {
 
 // Handle action clicks (when popup is not available or for quick toggle)
 chrome.action.onClicked.addListener(tab => {
-  // This will only trigger if popup is not set or fails to load
-  // Provides fallback functionality for quick comment toggle
   chrome.storage.local.get(
     {
       hideComments: true,
@@ -165,7 +163,7 @@ chrome.action.onClicked.addListener(tab => {
     },
     data => {
       if (data.autoDetection) {
-        // Use override logic for icon clicks too
+        // Apply override when auto detection is on
         const currentlyHidden =
           data.commentOverride !== null
             ? data.commentOverride
@@ -181,7 +179,6 @@ chrome.action.onClicked.addListener(tab => {
           updateIconForTab(tab)
         })
       } else {
-        // Normal behavior when auto detection is off
         const newState = !data.hideComments
         chrome.storage.local.set({ hideComments: newState }, () => {
           sendMessageWithRetry(tab.id, {
@@ -226,7 +223,7 @@ function updateIconForTab(tab) {
       commentOverride: null,
     },
     data => {
-      let iconPath = "icons/icon.png"
+      let iconPath = "icon.png"
 
       if (tab.url && tab.url.includes("instagram.com")) {
         // Show enabled icon if ANY feature is active
@@ -238,7 +235,7 @@ function updateIconForTab(tab) {
           (!data.autoDetection && data.hideComments) ||
           data.commentOverride !== null
 
-        iconPath = hasActiveFeatures ? "icons/icon.png" : "icons/icon.png"
+        iconPath = hasActiveFeatures ? "icon.png" : "icon.png"
       }
 
       chrome.action.setIcon({ path: iconPath, tabId: tab.id })

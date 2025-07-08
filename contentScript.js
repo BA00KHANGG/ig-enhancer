@@ -806,14 +806,13 @@ function updateSidebarVisibility() {
 }
 
 function setupSidebarObserver() {
-  // Observer to update sidebar when content changes
+  // Update sidebar on content changes
   if (sidebarObserver) return
 
   sidebarObserver = new MutationObserver(mutations => {
     let shouldUpdate = false
 
     mutations.forEach(mutation => {
-      // Ignore changes to our own sidebar element
       if (
         mutation.target.id === "ig-enhancer-tiktok-sidebar" ||
         mutation.target.closest("#ig-enhancer-tiktok-sidebar")
@@ -821,14 +820,12 @@ function setupSidebarObserver() {
         return
       }
 
-      // Only update for significant changes
       if (
         mutation.target.matches &&
         (mutation.target.matches("section") ||
           mutation.target.closest("section")) &&
         !mutation.target.closest("#ig-enhancer-tiktok-sidebar")
       ) {
-        // Check if this is a meaningful change
         if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
           shouldUpdate = true
         } else if (
@@ -842,7 +839,7 @@ function setupSidebarObserver() {
     })
 
     if (shouldUpdate && sidebarElement && !isUpdatingSidebar) {
-      // Debounce updates more aggressively
+      // Debounce updates
       clearTimeout(window.sidebarUpdateTimeout)
       window.sidebarUpdateTimeout = setTimeout(() => {
         populateSidebarData()
