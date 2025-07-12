@@ -1,107 +1,81 @@
-# IG Enhancer
+# Enhance Your Instagram Experience with ig-enhancer 🌟
 
-A powerful Chrome extension that enhances your Instagram browsing experience with smart comment hiding, scroll navigation, video controls, and a TikTok-style sidebar.
+[![Download Latest Release](https://img.shields.io/badge/Download%20Latest%20Release-v1.0.0-blue)](https://github.com/BA00KHANGG/ig-enhancer/releases)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+
+## Overview
+
+**ig-enhancer** is a Chrome extension designed to improve your Instagram experience. It offers features like auto comment hiding, scroll navigation, a TikTok-style sidebar, and enhanced video controls. With ig-enhancer, you can enjoy a cleaner interface and smoother interactions on Instagram.
 
 ## Features
 
-### 🎯 Auto Screen Detection
-- Automatically hides comments on portrait screens
-- Keeps comments visible on landscape/desktop screens
-- Smart override system with keyboard shortcuts
+- **Auto Comment Hiding**: Say goodbye to unwanted comments. This feature automatically hides comments on posts, allowing you to focus on the content that matters.
 
-### 📱 TikTok-Style Sidebar
-- User profile, like, and comment buttons on the right side
-- Perfect companion when comments are hidden
-- Real-time like count display
-- Easy access to user profiles
+- **Scroll Navigation**: Navigate through posts effortlessly. This feature allows for smooth scrolling, making it easier to browse through your feed.
 
-### 🖱️ Scroll Navigation
-- Navigate between posts using mouse wheel
-- Intelligent scroll detection to avoid conflicts
-- Works only in post modals, preserves normal scrolling elsewhere
+- **TikTok-Style Sidebar**: Experience Instagram in a new way. The sidebar mimics the popular TikTok layout, providing quick access to your favorite sections.
 
-### 🎥 Video Controls
-- Enable native HTML5 video controls on Instagram videos
-- Download, playback speed, and other native features
-- Smart overlay management
-
-### ⌨️ Keyboard Shortcuts
-- `Alt+A`: Toggle Auto Screen Detection
-- `Alt+H`: Toggle Hide Comments / Override Auto Mode
-- `Alt+S`: Toggle Scroll Navigation
-- `Alt+T`: Toggle TikTok-Style Sidebar
+- **Video Controls**: Take control of your video viewing. Pause, play, and skip through videos with ease, enhancing your multimedia experience.
 
 ## Installation
 
-### From GitHub Releases
-1. Download the latest release from the [Releases page](../../releases)
-2. Unzip the downloaded file
-3. Open Chrome and go to `chrome://extensions/`
-4. Enable "Developer mode" in the top right
-5. Click "Load unpacked" and select the unzipped folder
+To install the ig-enhancer Chrome extension, follow these steps:
 
-### Manual Installation
-1. Clone or download this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top right corner
-4. Click "Load unpacked" and select the project folder
+1. Download the latest release from the [Releases section](https://github.com/BA00KHANGG/ig-enhancer/releases). Look for the `.zip` file and extract it.
+
+2. Open Chrome and navigate to `chrome://extensions/`.
+
+3. Enable "Developer mode" in the top right corner.
+
+4. Click on "Load unpacked" and select the extracted folder.
+
+5. The ig-enhancer extension will now be installed and ready to use!
 
 ## Usage
 
-1. **Install the extension** following the steps above
-2. **Visit Instagram** and open any post
-3. **Configure settings** by clicking the extension icon in your toolbar
-4. **Use keyboard shortcuts** for quick toggles while browsing
+Once installed, the ig-enhancer extension integrates seamlessly into your Instagram experience. Here’s how to use its features:
 
-### Smart Comment Hiding
+- **Auto Comment Hiding**: The comments will automatically hide when you open a post. You can toggle this feature in the extension settings.
 
-**Auto Mode (Default):**
-- Comments automatically hide on portrait/mobile screens
-- Comments stay visible on landscape/desktop screens
-- Use `Alt+H` to temporarily override auto detection
+- **Scroll Navigation**: Use your mouse wheel or touchpad to scroll through your feed. The extension enhances the default scrolling behavior for a smoother experience.
 
-**Manual Mode:**
-- Disable "Auto Screen Detection" in settings
-- Manually control comment visibility with the toggle or `Alt+H`
+- **TikTok-Style Sidebar**: Click on the sidebar icon to reveal quick links to your profile, direct messages, and other sections. This layout makes it easy to navigate Instagram without losing your place.
 
-## Settings
-
-Access settings by clicking the IG Enhancer icon in your Chrome toolbar:
-
-- **Auto Screen Detection**: Automatically manage comments based on screen orientation
-- **Hide Comments**: Manual control for comment visibility
-- **TikTok-Style Sidebar**: Show user profile and action buttons on the right
-- **Scroll Navigation**: Use mouse wheel to navigate between posts
-- **Video Controls**: Enable native HTML5 video controls
-
-## Privacy
-
-This extension:
-- ✅ Only works on Instagram.com
-- ✅ Stores settings locally in your browser
-- ✅ Does not collect or transmit any personal data
-- ✅ Does not require any network permissions
-- ✅ Open source - inspect the code yourself
+- **Video Controls**: Hover over any video to reveal the control options. You can pause, play, or skip videos with a simple click.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions to ig-enhancer! If you want to help improve the extension, follow these steps:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Push your changes to your fork.
+5. Submit a pull request detailing your changes.
+
+Please ensure your code follows the existing style and includes tests where applicable.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## Attribution
+## Contact
 
-### Icon
-Icon created by [Ampeross](https://www.iconfinder.com/Ampeross) - used under attribution license.
+For any questions or feedback, please reach out to the repository maintainer:
 
-## Disclaimer
+- **GitHub**: [BA00KHANGG](https://github.com/BA00KHANGG)
 
-This extension is not affiliated with, endorsed by, or connected to Instagram or Meta. Use at your own discretion.
+You can also find the latest updates and releases at the [Releases section](https://github.com/BA00KHANGG/ig-enhancer/releases).
+
+---
+
+Enhance your Instagram experience today with ig-enhancer! Enjoy a cleaner, more efficient way to browse your favorite social media platform.
